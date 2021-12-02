@@ -2,27 +2,39 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Jobs\TradingJob;
 
 class HomeController extends Controller
 {
-    /**
-     * Create a new controller instance.
-     *
-     * @return void
-     */
-    public function __construct()
-    {
-        $this->middleware('auth');
-    }
+  public function index()
+  {
+    return view('home');
+  }
 
-    /**
-     * Show the application dashboard.
-     *
-     * @return \Illuminate\Contracts\Support\Renderable
-     */
-    public function index()
-    {
-        return view('home');
+  public function runTrading()
+  {
+    $parameters = [
+      [
+        'stock'    => 'Exmo',
+        'diff'     => 0.2,
+        'maxTrade' => 200,
+        'pair'     => 'SHIB_USD'
+      ]
+    ];
+
+    foreach($parameters as $parameter) {
+      self::tradingByStock($parameter);
     }
+  }
+
+  public static function tradingByStock(array $parameter)
+  {
+    $className = $parameter['stock'] . 'Class';
+    $class = "App\\Classes\\" . $className;
+
+    $object = new $class($parameter);
+    $object->trade();
+
+    TradingJob::dispatch($parameter);
+  }
 }
