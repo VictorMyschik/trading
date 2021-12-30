@@ -97,7 +97,7 @@ abstract class TradeBaseClass implements TradingInterface
     /// Buy MNX
     $balanceValue = $balance[$currencySecond] ?? 0;
     if($balanceValue > 0.01) {
-      $allowMaxTradeSum = $balanceValue > $this->quantityMax ? $this->quantityMax : $balanceValue;
+      $allowMaxTradeSum = min($balanceValue, $this->quantityMax);
 
       foreach($fullOpenOrders as $openOrder) {
         if($openOrder['type'] == self::KIND_BUY) {
