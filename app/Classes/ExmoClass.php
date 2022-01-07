@@ -8,12 +8,10 @@ use Mockery\Exception;
 
 class ExmoClass extends TradeBaseClass implements TradingInterface
 {
-  private array $precision = [];
-
   /**
    * Order Book with trades history
    */
-  public function getOrderBook(int $limit = 100): array
+  public function getOrderBook(int $limit = 25): array
   {
     $resultBook = array();
     $param = array('pair' => $this->pair, 'limit' => $limit);

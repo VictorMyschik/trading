@@ -16,9 +16,15 @@ class HomeController extends Controller
     $parameters = [
       [
         'stock'    => 'Exmo',
-        'diff'     => 0.2,
-        'maxTrade' => 200,
-        'pair'     => 'SHIB_USD'
+        'diff'     => 0.8,
+        'maxTrade' => 25,
+        'pair'     => 'SHIB_USDT'
+      ],
+      [
+        'stock'    => 'Exmo',
+        'diff'     => 0.8,
+        'maxTrade' => 25,
+        'pair'     => 'MNC_USD'
       ]
     ];
 

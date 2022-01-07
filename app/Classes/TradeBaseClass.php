@@ -12,6 +12,7 @@ abstract class TradeBaseClass implements TradingInterface
   protected float $quantityMin;
   protected array $calculatedOpenOrders;
   protected float $skipSum = 20;
+  protected array $precision = [];
 
   public const KIND_SELL = 'sell';
   public const KIND_BUY = 'buy';
@@ -35,6 +36,7 @@ abstract class TradeBaseClass implements TradingInterface
     //$this->setSkipSum($input['orderBook']);
 
     $out = array();
+    $out['Pair'] = $this->pair;
     $out['Time'] = MrDateTime::now()->getFullTime();
     $out['Balance'] = $balance = $this->getBalance();
 
@@ -48,8 +50,9 @@ abstract class TradeBaseClass implements TradingInterface
 
     // If diff smaller than commission - cancel all orders
     if($orderBookDiff < $this->diff) {
+      $out[] = 'Diff smaller than commission:' . $orderBookDiff . '<' . $this->diff;
       foreach($fullOpenOrders as $openOrder) {
-        if($openOrder['pair'] == $this->pair) {
+        if($openOrder['pair'] === $this->pair) {
           $this->cancelOrder($openOrder['order_id']);
         }
       }
@@ -65,8 +68,6 @@ abstract class TradeBaseClass implements TradingInterface
     $work_time = MrDateTime::GetTimeResult();
     $out['WorkTime'] = reset($work_time);
 
-    //$out['report'] = self::$report;
-
     return $out;
   }
 
@@ -80,7 +81,7 @@ abstract class TradeBaseClass implements TradingInterface
     if($balanceValue > $this->quantityMin) {
       // Cancel open orders. Disable many orders, one only
       foreach($fullOpenOrders as $openOrder) {
-        if($openOrder['type'] == 'sell') {
+        if($openOrder['type'] === 'sell' && $this->pair === $openOrder['pair']) {
           $this->cancelOrder($openOrder['order_id']);
 
           return;
@@ -100,7 +101,7 @@ abstract class TradeBaseClass implements TradingInterface
       $allowMaxTradeSum = min($balanceValue, $this->quantityMax);
 
       foreach($fullOpenOrders as $openOrder) {
-        if($openOrder['type'] == self::KIND_BUY) {
+        if($openOrder['type'] === self::KIND_BUY && $this->pair === $openOrder['pair']) {
           $this->cancelOrder($openOrder['order_id']);
 
           return;
