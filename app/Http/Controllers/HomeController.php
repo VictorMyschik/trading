@@ -15,17 +15,26 @@ class HomeController extends Controller
   {
     $parameters = [
       [
-        'stock'    => 'Exmo',
-        'diff'     => 0.8,
-        'maxTrade' => 25,
-        'pair'     => 'SHIB_USDT'
+        'stock'     => 'Exmo',
+        'diff'      => 1,
+        'maxTrade'  => 125,
+        'pair'      => 'MNC_USD',
+        'queueName' => 'mnc_usd_queue'
       ],
       [
-        'stock'    => 'Exmo',
-        'diff'     => 0.8,
-        'maxTrade' => 25,
-        'pair'     => 'MNC_USD'
-      ]
+        'stock'     => 'Exmo',
+        'diff'      => 1,
+        'maxTrade'  => 125,
+        'pair'      => 'SHIB_USDT',
+        'queueName' => 'shib_usdt_queue'
+      ],
+      [
+        'stock'     => 'Exmo',
+        'diff'      => 1,
+        'maxTrade'  => 125000,
+        'pair'      => 'SMART_RUB',
+        'queueName' => 'smart_rub_queue'
+      ],
     ];
 
     foreach($parameters as $parameter) {
@@ -35,12 +44,6 @@ class HomeController extends Controller
 
   public static function tradingByStock(array $parameter)
   {
-    $className = $parameter['stock'] . 'Class';
-    $class = "App\\Classes\\" . $className;
-
-    $object = new $class($parameter);
-    $object->trade();
-
     TradingJob::dispatch($parameter);
   }
 }

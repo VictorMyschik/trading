@@ -19,6 +19,7 @@ class TradingJob implements ShouldQueue
   {
     $this->input = $input;
     $this->connection = 'redis';
+    $this->queue = $input['queueName'];
   }
 
   /**
@@ -28,6 +29,12 @@ class TradingJob implements ShouldQueue
    */
   public function handle()
   {
+    $className = $this->input['stock'] . 'Class';
+    $class = "App\\Classes\\" . $className;
+
+    $object = new $class($this->input);
+    $object->trade();
+
     HomeController::tradingByStock($this->input);
   }
 }

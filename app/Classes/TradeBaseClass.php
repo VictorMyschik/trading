@@ -3,6 +3,7 @@
 namespace App\Classes;
 
 use App\Helpers\MrDateTime;
+use Illuminate\Support\Facades\Log;
 
 abstract class TradeBaseClass implements TradingInterface
 {
@@ -11,7 +12,7 @@ abstract class TradeBaseClass implements TradingInterface
   protected int $quantityMax;
   protected float $quantityMin;
   protected array $calculatedOpenOrders;
-  protected float $skipSum = 20;
+  protected float $skipSum = 10;
   protected array $precision = [];
 
   public const KIND_SELL = 'sell';
@@ -38,8 +39,12 @@ abstract class TradeBaseClass implements TradingInterface
     $out = array();
     $out['Pair'] = $this->pair;
     $out['Time'] = MrDateTime::now()->getFullTime();
-    $out['Balance'] = $balance = $this->getBalance();
+    $balance = $this->getBalance();
 
+    if(!isset($balance[explode('_', $this->pair)[1]]))
+      return $out;
+
+    $out['Balance'] = $balance[explode('_', $this->pair)[1]];
 
     $orderBookDiff = round($fullOrderBook[0]['PriceSell'] * 100 / (float)$fullOrderBook[0]['PriceBuy'] - 100, 2);
     $out['OrderBookDiff'] = $orderBookDiff;
@@ -53,18 +58,20 @@ abstract class TradeBaseClass implements TradingInterface
       $out[] = 'Diff smaller than commission:' . $orderBookDiff . '<' . $this->diff;
       foreach($fullOpenOrders as $openOrder) {
         if($openOrder['pair'] === $this->pair) {
+          $out['cancelOrder'] = $openOrder['order_id'];
           $this->cancelOrder($openOrder['order_id']);
         }
       }
     }
     else {
-      $needRestart = $this->correctHasOrders($fullOpenOrders, $fullOrderBook, $this->pair);
+      $needRestart = $this->correctHasOrders($fullOpenOrders, $fullOrderBook);
+      $out['$needRestart'] = (string)$needRestart;
       if(!$needRestart) {
         $this->tradeByOrder($balance, $fullOpenOrders, $fullOrderBook, $this->pair);
       }
     }
 
-    MrDateTime::StopItem(null);
+    MrDateTime::StopItem(time());
     $work_time = MrDateTime::GetTimeResult();
     $out['WorkTime'] = reset($work_time);
 
@@ -81,7 +88,7 @@ abstract class TradeBaseClass implements TradingInterface
     if($balanceValue > $this->quantityMin) {
       // Cancel open orders. Disable many orders, one only
       foreach($fullOpenOrders as $openOrder) {
-        if($openOrder['type'] === 'sell' && $this->pair === $openOrder['pair']) {
+        if($openOrder['type'] === self::KIND_SELL && $this->pair === $openOrder['pair']) {
           $this->cancelOrder($openOrder['order_id']);
 
           return;
@@ -195,11 +202,11 @@ abstract class TradeBaseClass implements TradingInterface
     return true;
   }
 
-  private function correctHasOrders(array $fullOpenOrder, array $orderBook, string $pairName): bool
+  private function correctHasOrders(array $fullOpenOrder, array $orderBook): bool
   {
     foreach($fullOpenOrder as $openOrder) {
       // Has open order
-      if($pairName == $openOrder['pair']) {
+      if($this->pair === $openOrder['pair']) {
         // Update order
         if(!$this->isActual($openOrder, $orderBook)) {
           $this->cancelOrder($openOrder['order_id']);

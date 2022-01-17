@@ -31,6 +31,9 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
   {
     $rows = [];
 
+    if(!isset($data[$this->pair]['ask']))
+      return $rows;
+
     foreach($data[$this->pair]['ask'] as $key => $item) {
       $row = array();
       $row['PriceSell'] = round($item[0], 8);
@@ -50,6 +53,8 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
   protected function parseHistory(array $data): array
   {
     $out = array();
+    if(!isset($data[$this->pair]))
+      return $out;
 
     foreach($data[$this->pair] as $row) {
       $item = array();
