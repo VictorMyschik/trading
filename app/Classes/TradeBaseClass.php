@@ -12,7 +12,7 @@ abstract class TradeBaseClass implements TradingInterface
   protected int $quantityMax;
   protected float $quantityMin;
   protected array $calculatedOpenOrders;
-  protected float $skipSum = 10;
+  protected float $skipSum = 15;
   protected array $precision = [];
 
   public const KIND_SELL = 'sell';
