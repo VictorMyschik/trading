@@ -20,6 +20,7 @@ abstract class TradeBaseClass implements TradingInterface
 
   public function __construct(array $input)
   {
+    $this->skipSum = $input['skipSum'];
     $this->pair = $input['pair'];
     $this->diff = $input['diff'];
     $this->quantityMax = $input['maxTrade'];

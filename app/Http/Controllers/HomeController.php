@@ -19,21 +19,24 @@ class HomeController extends Controller
         'diff'      => 1,
         'maxTrade'  => 125,
         'pair'      => 'MNC_USD',
-        'queueName' => 'mnc_usd_queue'
+        'queueName' => 'mnc_usd_queue',
+        'skipSum'   => 20,
       ],
       [
         'stock'     => 'Exmo',
         'diff'      => 1,
         'maxTrade'  => 125,
         'pair'      => 'SHIB_USDT',
-        'queueName' => 'shib_usdt_queue'
+        'queueName' => 'shib_usdt_queue',
+        'skipSum'   => 20,
       ],
       [
         'stock'     => 'Exmo',
         'diff'      => 1,
         'maxTrade'  => 125000,
         'pair'      => 'SMART_RUB',
-        'queueName' => 'smart_rub_queue'
+        'queueName' => 'smart_rub_queue',
+        'skipSum'   => 500,
       ],
     ];
 
