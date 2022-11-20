@@ -55,22 +55,7 @@ abstract class TradeBaseClass implements TradingInterface
 
     $this->calculatedOpenOrders = $this->groupOpenOrders($fullOpenOrders);
 
-    // If diff smaller than commission - cancel all orders
-    if ($orderBookDiff < $this->diff) {
-      $out[] = 'Diff smaller than commission:' . $orderBookDiff . '<' . $this->diff;
-      foreach ($fullOpenOrders as $openOrder) {
-        if ($openOrder['pair'] === $this->pair) {
-          $out['cancelOrder'] = $openOrder['order_id'];
-          $this->cancelOrder($openOrder['order_id']);
-        }
-      }
-    } else {
-      $needRestart = $this->correctHasOrders($fullOpenOrders, $fullOrderBook);
-      $out['$needRestart'] = (string)$needRestart;
-      if (!$needRestart) {
-        $this->tradeByOrder($balance, $fullOpenOrders, $fullOrderBook, $this->pair);
-      }
-    }
+    $this->baseStrategy($orderBookDiff, $fullOpenOrders, $fullOrderBook, $balance);
 
     MrDateTime::StopItem(time());
     $workTime = MrDateTime::GetTimeResult();
@@ -240,8 +225,8 @@ abstract class TradeBaseClass implements TradingInterface
 
   public static function runTrading()
   {
-    foreach(MrTrading::all() as $item) {
-      if(!$item->isActive()) {
+    foreach (MrTrading::all() as $item) {
+      if (!$item->isActive()) {
         continue;
       }
 
@@ -258,22 +243,50 @@ abstract class TradeBaseClass implements TradingInterface
     }
   }
 
+  #region Strategics
+  private function baseStrategy(float $orderBookDiff, array $fullOpenOrders, array $fullOrderBook, array $balance): array
+  {
+    $out = [];
+
+    // If diff smaller than commission - cancel all orders
+    if ($orderBookDiff < $this->diff) {
+      $out[] = 'Diff smaller than commission:' . $orderBookDiff . '<' . $this->diff;
+      foreach ($fullOpenOrders as $openOrder) {
+        if ($openOrder['pair'] === $this->pair) {
+          $out['cancelOrder'] = $openOrder['order_id'];
+          $this->cancelOrder($openOrder['order_id']);
+        }
+      }
+    } else {
+      $needRestart = $this->correctHasOrders($fullOpenOrders, $fullOrderBook);
+      $out['$needRestart'] = (string)$needRestart;
+      if (!$needRestart) {
+        $this->tradeByOrder($balance, $fullOpenOrders, $fullOrderBook, $this->pair);
+      }
+    }
+
+    return $out;
+  }
+  #endregion
+
+  #region Commands
   public static function stopTrading()
   {
-    echo exec('supervisorctl reread all').'<br>';
-    echo exec('supervisorctl update').'<br>';
-    echo exec('supervisorctl restart all').'<br>';
-    echo exec('cd /var/www/trading').'<br>';
-    echo exec('php artisan queue:clear').'<br>';
-    echo exec('php artisan queue:clear').'<br>';
-    echo exec('php artisan config:clear').'<br>';
-    echo exec('php artisan cache:clear').'<br>';
-    echo exec('redis-cli -h localhost -p 6379 flushdb').'<br>';
-    echo exec('php artisan horizon:clear').'<br>';
+    echo exec('supervisorctl reread all') . '<br>';
+    echo exec('supervisorctl update') . '<br>';
+    echo exec('supervisorctl restart all') . '<br>';
+    echo exec('cd /var/www/trading') . '<br>';
+    echo exec('php artisan queue:clear') . '<br>';
+    echo exec('php artisan queue:clear') . '<br>';
+    echo exec('php artisan config:clear') . '<br>';
+    echo exec('php artisan cache:clear') . '<br>';
+    echo exec('redis-cli -h localhost -p 6379 flushdb') . '<br>';
+    echo exec('php artisan horizon:clear') . '<br>';
   }
 
   public static function tradingByStock(array $parameter)
   {
     TradingJob::dispatch($parameter);
   }
+  #endregion
 }
