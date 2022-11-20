@@ -3,6 +3,8 @@
 namespace App\Classes;
 
 use App\Helpers\MrDateTime;
+use App\Jobs\TradingJob;
+use App\Models\MrTrading;
 
 abstract class TradeBaseClass implements TradingInterface
 {
@@ -234,5 +236,44 @@ abstract class TradeBaseClass implements TradingInterface
     }
 
     return round($newPrice, $precision);
+  }
+
+  public static function runTrading()
+  {
+    foreach(MrTrading::all() as $item) {
+      if(!$item->isActive()) {
+        continue;
+      }
+
+      $parameter = [
+        'stock'     => $item->getStock()->getName(),
+        'diff'      => $item->getDifferent(),
+        'maxTrade'  => $item->getMaxTrade(),
+        'pair'      => strtoupper($item->getPair()),
+        'queueName' => strtolower($item->id() . '_queue'),
+        'skipSum'   => $item->getSkipSum(),
+      ];
+
+      self::tradingByStock($parameter);
+    }
+  }
+
+  public static function stopTrading()
+  {
+    echo exec('supervisorctl reread all').'<br>';
+    echo exec('supervisorctl update').'<br>';
+    echo exec('supervisorctl restart all').'<br>';
+    echo exec('cd /var/www/trading').'<br>';
+    echo exec('php artisan queue:clear').'<br>';
+    echo exec('php artisan queue:clear').'<br>';
+    echo exec('php artisan config:clear').'<br>';
+    echo exec('php artisan cache:clear').'<br>';
+    echo exec('redis-cli -h localhost -p 6379 flushdb').'<br>';
+    echo exec('php artisan horizon:clear').'<br>';
+  }
+
+  public static function tradingByStock(array $parameter)
+  {
+    TradingJob::dispatch($parameter);
   }
 }

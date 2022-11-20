@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Classes\TradeBaseClass;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Artisan;
 
 class stop extends Command
 {
@@ -38,8 +38,7 @@ class stop extends Command
    */
   public function handle()
   {
-    echo Artisan::call('horizon:pause');
-
+    TradeBaseClass::stopTrading();
     return 0;
   }
 }
