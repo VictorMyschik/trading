@@ -50,6 +50,51 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
     return $rows;
   }
 
+  /**
+   * API Exmo
+   * Downloaded from https://github.com/exmo-dev/exmo_api_lib/blob/master/php/exmo.php
+   */
+  private function apiQuery($apiName, array $req = []): mixed
+  {
+    $mt = explode(' ', microtime());
+    $NONCE = $mt[1] . substr($mt[0], 2, 6);
+    // API settings
+    $url = "https://api.exmo.com/v1.1/$apiName";
+    $req['nonce'] = $NONCE;
+    // generate the POST data string
+    $post_data = http_build_query($req);
+    $sign = hash_hmac('sha512', $post_data, env('EXMO_SECRET'));
+    // generate the extra headers
+    $headers = array(
+      'Sign: ' . $sign,
+      'Key: ' . env('EXMO_KEY'),
+    );
+
+    static $ch = null;
+
+    if (is_null($ch)) {
+      $ch = curl_init();
+      curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+      curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/4.0 (compatible; PHP client; ' . php_uname('s') . '; PHP/' . phpversion() . ')');
+    }
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
+    // run the query
+    $res = curl_exec($ch);
+    if ($res === false) {
+      throw new Exception('Could not get reply: ' . curl_error($ch));
+    }
+    $dec = @json_decode($res, true);
+    if ($dec === null) {
+      throw new Exception('Invalid data received, please make sure connection is working and requested API exists');
+    }
+
+    return $dec;
+  }
+
   protected function parseHistory(array $data): array
   {
     $out = array();
@@ -151,50 +196,5 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
     }
 
     return $out;
-  }
-
-  /**
-   * API Exmo
-   * Downloaded from https://github.com/exmo-dev/exmo_api_lib/blob/master/php/exmo.php
-   */
-  private function apiQuery($apiName, array $req = []): mixed
-  {
-    $mt = explode(' ', microtime());
-    $NONCE = $mt[1] . substr($mt[0], 2, 6);
-    // API settings
-    $url = "https://api.exmo.com/v1.1/$apiName";
-    $req['nonce'] = $NONCE;
-    // generate the POST data string
-    $post_data = http_build_query($req);
-    $sign = hash_hmac('sha512', $post_data, env('EXMO_SECRET'));
-    // generate the extra headers
-    $headers = array(
-      'Sign: ' . $sign,
-      'Key: ' . env('EXMO_KEY'),
-    );
-
-    static $ch = null;
-
-    if (is_null($ch)) {
-      $ch = curl_init();
-      curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-      curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/4.0 (compatible; PHP client; ' . php_uname('s') . '; PHP/' . phpversion() . ')');
-    }
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-
-    // run the query
-    $res = curl_exec($ch);
-    if ($res === false) {
-      throw new Exception('Could not get reply: ' . curl_error($ch));
-    }
-    $dec = @json_decode($res, true);
-    if ($dec === null) {
-      throw new Exception('Invalid data received, please make sure connection is working and requested API exists');
-    }
-
-    return $dec;
   }
 }

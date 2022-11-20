@@ -10,7 +10,7 @@ class TradingConfigClass
   public static function getQueueList(): array
   {
     $list = [];
-    for($i = 0; $i < 20; $i++) {
+    for ($i = 0; $i < 20; $i++) {
       $list[] = strtolower($i . '_queue');
     }
 

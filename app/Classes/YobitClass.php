@@ -30,6 +30,20 @@ class YobitClass extends TradeBaseClass implements TradingInterface
     return $pairs;
   }
 
+  public function getPairsSettings(): array
+  {
+    return MrCacheHelper::GetCachedData(self::class . '_pairs', function () {
+      $url = "https://yobit.net/api/3/info";
+
+      return $this->api($url)['pairs'];
+    });
+  }
+
+  private function api(string $url)
+  {
+    return json_decode(file_get_contents($url), true);
+  }
+
   public function getAllPairs(string $delimiter = '/'): array
   {
     $pairs = array();
@@ -65,13 +79,20 @@ class YobitClass extends TradeBaseClass implements TradingInterface
     return $this->precision;
   }
 
-  public function getPairsSettings(): array
+  public function addOrder(float $price, string $pairName, string $kind, float $quantity): mixed
   {
-    return MrCacheHelper::GetCachedData(self::class . '_pairs', function () {
-      $url = "https://yobit.net/api/3/info";
+    $tmp_num = explode('.', $quantity);
+    $tmp1 = $tmp_num[1] ?? 0;
+    $precisionDiff = pow(10, -strlen($tmp1));
+    $finalQuantity = $quantity - $precisionDiff;
+    $parameters = array(
+      "pair"   => $pairName,  //"BTC_USD",
+      "amount" => $finalQuantity,
+      "rate"   => $price,
+      "type"   => $kind
+    );
 
-      return $this->api($url)['pairs'];
-    });
+    return $this->apiQuery('Trade', $parameters);
   }
 
   protected function apiQuery($api_name, array $req = array()): mixed
@@ -105,22 +126,6 @@ class YobitClass extends TradeBaseClass implements TradingInterface
     curl_close($ch);
 
     return json_decode($res, true);
-  }
-
-  public function addOrder(float $price, string $pairName, string $kind, float $quantity): mixed
-  {
-    $tmp_num = explode('.', $quantity);
-    $tmp1 = $tmp_num[1] ?? 0;
-    $precisionDiff = pow(10, -strlen($tmp1));
-    $finalQuantity = $quantity - $precisionDiff;
-    $parameters = array(
-      "pair"   => $pairName,  //"BTC_USD",
-      "amount" => $finalQuantity,
-      "rate"   => $price,
-      "type"   => $kind
-    );
-
-    return $this->apiQuery('Trade', $parameters);
   }
 
   public function cancelOrder(int $order_id)
@@ -158,10 +163,34 @@ class YobitClass extends TradeBaseClass implements TradingInterface
     return $result_book;
   }
 
-
-  private function api(string $url)
+  public function parseOrderBook(array $data): array
   {
-    return json_decode(file_get_contents($url), true);
+    $rows = [];
+
+    // Количество
+    foreach ($data[$this->pair]['asks'] as $key => $item) {
+
+      $priceSell = round($item[0], 8);
+      $quantitySell = round($item[1], 4);
+      $sumSell = $priceSell * $quantitySell;
+
+      $row = array();
+      $row['PriceSell'] = $priceSell;
+      $row['QuantitySell'] = $quantitySell;
+      $row['SumSell'] = $sumSell;
+
+      $priceBuy = round($data[$this->pair]['bids'][$key][0], 8);
+      $quantityBuy = round($data[$this->pair]['bids'][$key][1], 4);
+      $sumBuy = $priceBuy * $quantityBuy;
+
+      $row['PriceBuy'] = $priceBuy;
+      $row['QuantityBuy'] = $quantityBuy;
+      $row['SumBuy'] = $sumBuy;
+
+      $rows[] = $row;
+    }
+
+    return $rows;
   }
 
   public function parseHistory(array $data): array
@@ -213,35 +242,5 @@ class YobitClass extends TradeBaseClass implements TradingInterface
     );
 
     return $this->apiQuery('user_trades', $parameters);
-  }
-
-  public function parseOrderBook(array $data): array
-  {
-    $rows = [];
-
-    // Количество
-    foreach ($data[$this->pair]['asks'] as $key => $item) {
-
-      $priceSell = round($item[0], 8);
-      $quantitySell = round($item[1], 4);
-      $sumSell = $priceSell * $quantitySell;
-
-      $row = array();
-      $row['PriceSell'] = $priceSell;
-      $row['QuantitySell'] = $quantitySell;
-      $row['SumSell'] = $sumSell;
-
-      $priceBuy = round($data[$this->pair]['bids'][$key][0], 8);
-      $quantityBuy = round($data[$this->pair]['bids'][$key][1], 4);
-      $sumBuy = $priceBuy * $quantityBuy;
-
-      $row['PriceBuy'] = $priceBuy;
-      $row['QuantityBuy'] = $quantityBuy;
-      $row['SumBuy'] = $sumBuy;
-
-      $rows[] = $row;
-    }
-
-    return $rows;
   }
 }

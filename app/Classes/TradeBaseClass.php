@@ -6,6 +6,8 @@ use App\Helpers\MrDateTime;
 
 abstract class TradeBaseClass implements TradingInterface
 {
+  public const KIND_SELL = 'sell';
+  public const KIND_BUY = 'buy';
   protected string $pair;
   protected float $diff;
   protected int $quantityMax;
@@ -13,9 +15,6 @@ abstract class TradeBaseClass implements TradingInterface
   protected array $calculatedOpenOrders;
   protected float $skipSum = 15;
   protected array $precision = [];
-
-  public const KIND_SELL = 'sell';
-  public const KIND_BUY = 'buy';
 
   public function __construct(array $input)
   {
@@ -31,7 +30,7 @@ abstract class TradeBaseClass implements TradingInterface
     MrDateTime::Start();
 
     $fullOrderBook = $this->getOrderBook();
-    if(!count($fullOrderBook)) {
+    if (!count($fullOrderBook)) {
       return ['Order book is empty'];
     }
     //$this->setSkipSum($input['orderBook']);
@@ -41,7 +40,7 @@ abstract class TradeBaseClass implements TradingInterface
     $out['Time'] = MrDateTime::now()->getFullTime();
     $balance = $this->getBalance();
 
-    if(!isset($balance[explode('_', $this->pair)[1]]))
+    if (!isset($balance[explode('_', $this->pair)[1]]))
       return $out;
 
     $out['Balance'] = $balance[explode('_', $this->pair)[1]];
@@ -54,19 +53,18 @@ abstract class TradeBaseClass implements TradingInterface
     $this->calculatedOpenOrders = $this->groupOpenOrders($fullOpenOrders);
 
     // If diff smaller than commission - cancel all orders
-    if($orderBookDiff < $this->diff) {
+    if ($orderBookDiff < $this->diff) {
       $out[] = 'Diff smaller than commission:' . $orderBookDiff . '<' . $this->diff;
-      foreach($fullOpenOrders as $openOrder) {
-        if($openOrder['pair'] === $this->pair) {
+      foreach ($fullOpenOrders as $openOrder) {
+        if ($openOrder['pair'] === $this->pair) {
           $out['cancelOrder'] = $openOrder['order_id'];
           $this->cancelOrder($openOrder['order_id']);
         }
       }
-    }
-    else {
+    } else {
       $needRestart = $this->correctHasOrders($fullOpenOrders, $fullOrderBook);
       $out['$needRestart'] = (string)$needRestart;
-      if(!$needRestart) {
+      if (!$needRestart) {
         $this->tradeByOrder($balance, $fullOpenOrders, $fullOrderBook, $this->pair);
       }
     }
@@ -78,82 +76,39 @@ abstract class TradeBaseClass implements TradingInterface
     return $out;
   }
 
-  private function tradeByOrder(array $balance, array $fullOpenOrders, array $order_book, string $pairName): void
+  /**
+   * Group orders by pair names
+   */
+  private function groupOpenOrders(array $data): array
   {
-    $currencyFirst = explode('_', $pairName)[0];
-    $currencySecond = explode('_', $pairName)[1];
-    $balanceValue = $balance[$currencyFirst] ?? 0;
+    $openOrders = [];
 
-    /// Sell MNX
-    if($balanceValue > $this->quantityMin) {
-      // Cancel open orders. Disable many orders, one only
-      foreach($fullOpenOrders as $openOrder) {
-        if($openOrder['type'] === self::KIND_SELL && $this->pair === $openOrder['pair']) {
-          $this->cancelOrder($openOrder['order_id']);
-
-          return;
-        }
+    foreach ($data as $item) {
+      if (isset($openOrders[$item['pair']])) {
+        $openOrders[$item['pair']] += round($item['amount'], 8);
+      } else {
+        $openOrders[$item['pair']] = round($item['amount'], 8);
       }
-
-      // Create new order
-      $newPrice = $this->getNewPrice($order_book, self::KIND_SELL, $pairName);
-      $this->addOrder($newPrice, $pairName, self::KIND_SELL, $balanceValue);
-
-      return;
     }
 
-    /// Buy MNX
-    $balanceValue = $balance[$currencySecond] ?? 0;
-    if($balanceValue > 0.01) {
-      $allowMaxTradeSum = min($balanceValue, $this->quantityMax);
-
-      foreach($fullOpenOrders as $openOrder) {
-        if($openOrder['type'] === self::KIND_BUY && $this->pair === $openOrder['pair']) {
-          $this->cancelOrder($openOrder['order_id']);
-
-          return;
-        }
-      }
-
-      // Create new order
-      $newPrice = $this->getNewPrice($order_book, self::KIND_BUY, $pairName);
-
-      $quantity = $allowMaxTradeSum / $newPrice;
-
-      if($quantity <= $this->quantityMin) {
-        return;
-      }
-
-      $this->addOrder($newPrice, $pairName, self::KIND_BUY, $quantity);
-    }
+    return $openOrders;
   }
 
-  private function getNewPrice(array $orderBook, string $type, string $pairName): float
+  private function correctHasOrders(array $fullOpenOrder, array $orderBook): bool
   {
-    $precision = $this->getPricePrecision()[$pairName];
-    $precisionDiff = pow(10, -$precision);
+    foreach ($fullOpenOrder as $openOrder) {
+      // Has open order
+      if ($this->pair === $openOrder['pair']) {
+        // Update order
+        if (!$this->isActual($openOrder, $orderBook)) {
+          $this->cancelOrder($openOrder['order_id']);
 
-    // Get price skipping "small" amount row
-    $orderBookItem = $orderBook[0];
-    $sum = 0;
-    foreach($orderBook as $item) {
-      $sum += ($type == self::KIND_SELL) ? $item['SumSell'] : $item['SumBuy'];
-      if($sum > $this->skipSum) {
-        $orderBookItem = $item;
-        break;
+          return true;
+        }
       }
     }
 
-    if($type == self::KIND_SELL) {
-      $old_price_sell = (float)$orderBookItem['PriceSell'];
-      $newPrice = $old_price_sell - $precisionDiff;
-    }
-    else { // Buy
-      $old_price_buy = (float)$orderBookItem['PriceBuy'];
-      $newPrice = $old_price_buy + $precisionDiff;
-    }
-
-    return round($newPrice, $precision);
+    return false;
   }
 
   private function isActual(array $openOrder, array $orderBook): bool
@@ -169,13 +124,13 @@ abstract class TradeBaseClass implements TradingInterface
 
     $orderBookItem = $orderBook[0];
     $sum = 0;
-    foreach($orderBook as $item) {
+    foreach ($orderBook as $item) {
       // exclude self order
-      if($item[$priceKeyName] == $price)
+      if ($item[$priceKeyName] == $price)
         continue;
 
       $sum += $item[$sumKeyName];
-      if($sum > $this->skipSum) {
+      if ($sum > $this->skipSum) {
         $orderBookItem = $item;
         break;
       }
@@ -183,58 +138,99 @@ abstract class TradeBaseClass implements TradingInterface
 
     $orderPrice = $orderBookItem[$priceKeyName];
 
-    if($kind == self::KIND_SELL) {
+    if ($kind == self::KIND_SELL) {
       $precisionDiff = pow(10, -$precision);
       $orderPrice = $orderPrice - $precisionDiff;
     }
 
-    if($kind == self::KIND_BUY) {
+    if ($kind == self::KIND_BUY) {
       $precisionDiff = pow(10, -$precision);
       $orderPrice = $orderPrice + $precisionDiff;
     }
 
     $orderPrice = round($orderPrice, $precision);
 
-    if((string)$orderPrice != (string)$myOpenPrice) {
+    if ((string)$orderPrice != (string)$myOpenPrice) {
       return false; // need update order
     }
 
     return true;
   }
 
-  private function correctHasOrders(array $fullOpenOrder, array $orderBook): bool
+  private function tradeByOrder(array $balance, array $fullOpenOrders, array $order_book, string $pairName): void
   {
-    foreach($fullOpenOrder as $openOrder) {
-      // Has open order
-      if($this->pair === $openOrder['pair']) {
-        // Update order
-        if(!$this->isActual($openOrder, $orderBook)) {
+    $currencyFirst = explode('_', $pairName)[0];
+    $currencySecond = explode('_', $pairName)[1];
+    $balanceValue = $balance[$currencyFirst] ?? 0;
+
+    /// Sell MNX
+    if ($balanceValue > $this->quantityMin) {
+      // Cancel open orders. Disable many orders, one only
+      foreach ($fullOpenOrders as $openOrder) {
+        if ($openOrder['type'] === self::KIND_SELL && $this->pair === $openOrder['pair']) {
           $this->cancelOrder($openOrder['order_id']);
 
-          return true;
+          return;
         }
       }
+
+      // Create new order
+      $newPrice = $this->getNewPrice($order_book, self::KIND_SELL, $pairName);
+      $this->addOrder($newPrice, $pairName, self::KIND_SELL, $balanceValue);
+
+      return;
     }
 
-    return false;
+    /// Buy MNX
+    $balanceValue = $balance[$currencySecond] ?? 0;
+    if ($balanceValue > 0.01) {
+      $allowMaxTradeSum = min($balanceValue, $this->quantityMax);
+
+      foreach ($fullOpenOrders as $openOrder) {
+        if ($openOrder['type'] === self::KIND_BUY && $this->pair === $openOrder['pair']) {
+          $this->cancelOrder($openOrder['order_id']);
+
+          return;
+        }
+      }
+
+      // Create new order
+      $newPrice = $this->getNewPrice($order_book, self::KIND_BUY, $pairName);
+
+      $quantity = $allowMaxTradeSum / $newPrice;
+
+      if ($quantity <= $this->quantityMin) {
+        return;
+      }
+
+      $this->addOrder($newPrice, $pairName, self::KIND_BUY, $quantity);
+    }
   }
 
-  /**
-   * Group orders by pair names
-   */
-  private function groupOpenOrders(array $data): array
+  private function getNewPrice(array $orderBook, string $type, string $pairName): float
   {
-    $openOrders = [];
+    $precision = $this->getPricePrecision()[$pairName];
+    $precisionDiff = pow(10, -$precision);
 
-    foreach($data as $item) {
-      if(isset($openOrders[$item['pair']])) {
-        $openOrders[$item['pair']] += round($item['amount'], 8);
-      }
-      else {
-        $openOrders[$item['pair']] = round($item['amount'], 8);
+    // Get price skipping "small" amount row
+    $orderBookItem = $orderBook[0];
+    $sum = 0;
+    foreach ($orderBook as $item) {
+      $sum += ($type == self::KIND_SELL) ? $item['SumSell'] : $item['SumBuy'];
+      if ($sum > $this->skipSum) {
+        $orderBookItem = $item;
+        break;
       }
     }
 
-    return $openOrders;
+    if ($type == self::KIND_SELL) {
+      $old_price_sell = (float)$orderBookItem['PriceSell'];
+      $newPrice = $old_price_sell - $precisionDiff;
+    } else { // Buy
+      $old_price_buy = (float)$orderBookItem['PriceBuy'];
+      $newPrice = $old_price_buy + $precisionDiff;
+    }
+
+    return round($newPrice, $precision);
   }
 }
