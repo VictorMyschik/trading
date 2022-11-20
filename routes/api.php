@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\MrSendController;
 use App\Http\Controllers\TableControllers\BaseTableController\BaseTableController;
 use Illuminate\Support\Facades\Route;
 
@@ -16,6 +15,3 @@ use Illuminate\Support\Facades\Route;
 */
 // генератор URL для таблиц
 Route::match(['get', 'post'], '/table', [BaseTableController::class, 'getTableClass'])->name('base_table');
-/// Атрибуты в товаре
-// Удалить атрибут из товара
-Route::match(['get', 'post'], '/form', [MrSendController::class, 'sendAction']);
