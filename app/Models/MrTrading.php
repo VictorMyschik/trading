@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Classes\TradeBaseClass;
 use App\Models\Lego\Traits\Fields\MrDescriptionNullableFieldTrait;
 use App\Models\Lego\Traits\Fields\MrIsActiveFieldTrait;
 use App\Models\Lego\Traits\Fields\MrOrmDateTimeNullableFieldTrait;
@@ -24,6 +25,7 @@ class MrTrading extends ORM
     'SkipSum',
     'Description',
     'IsActive',
+    'Strategy'
     //'WriteDate'
   ];
 
@@ -75,5 +77,19 @@ class MrTrading extends ORM
   public function setSkipSum(float $value): void
   {
     $this->SkipSum = $value;
+  }
+
+  public function getStrategy(): int
+  {
+    return $this->Strategy;
+  }
+
+  public function setStrategy(int $value): void
+  {
+    if (!isset(TradeBaseClass::getStrategyList()[$value])) {
+      abort(500, 'Unknown strategy');
+    }
+
+    $this->Strategy = $value;
   }
 }

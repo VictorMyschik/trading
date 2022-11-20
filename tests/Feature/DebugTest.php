@@ -1,20 +1,26 @@
 <?php
 
 use App\Classes\ExmoClass;
+use App\Models\MrTrading;
 use Tests\TestCase;
 
 class DebugTest extends TestCase
 {
   public function testDebugFlow()
   {
-    $data = [
-      'skipSum'     => 50,
-      'pair'        => 'SHIB_USDT',
-      'diff'        => 0.8,
-      'maxTrade' => 100,
+    $item = MrTrading::where('Pair', 'SHIB_USDT')->first();
+
+    $parameters = [
+      'strategy'  => $item->getStrategy(),
+      'stock'     => $item->getStock()->getName(),
+      'diff'      => $item->getDifferent(),
+      'maxTrade'  => $item->getMaxTrade(),
+      'pair'      => strtoupper($item->getPair()),
+      'queueName' => strtolower($item->id() . '_queue'),
+      'skipSum'   => $item->getSkipSum(),
     ];
 
-    $object = new ExmoClass($data);
+    $object = new ExmoClass($parameters);
     $object->trade();
   }
 }

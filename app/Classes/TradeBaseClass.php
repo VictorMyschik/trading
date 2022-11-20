@@ -18,8 +18,24 @@ abstract class TradeBaseClass implements TradingInterface
   protected float $skipSum = 15;
   protected array $precision = [];
 
+  public const STRATEGY_BASE = 1;
+
+
+  public static function getStrategyList(): array
+  {
+    return [
+      self::STRATEGY_BASE => 'Базовая'
+    ];
+  }
+
   public function __construct(array $input)
   {
+    if (!isset(self::getStrategyList()[$input['strategy']])) {
+      MrTrading::where('Pair', $input['pair'])->update(['IsActive' => 0]);
+    }
+
+    $this->strategy = $input['strategy'];
+
     $this->skipSum = $input['skipSum'];
     $this->pair = $input['pair'];
     $this->diff = $input['diff'];
@@ -55,7 +71,7 @@ abstract class TradeBaseClass implements TradingInterface
 
     $this->calculatedOpenOrders = $this->groupOpenOrders($fullOpenOrders);
 
-    $this->baseStrategy($orderBookDiff, $fullOpenOrders, $fullOrderBook, $balance);
+    $this->baseStrategy($out, $orderBookDiff, $fullOpenOrders, $fullOrderBook, $balance);
 
     MrDateTime::StopItem(time());
     $workTime = MrDateTime::GetTimeResult();
@@ -244,10 +260,8 @@ abstract class TradeBaseClass implements TradingInterface
   }
 
   #region Strategics
-  private function baseStrategy(float $orderBookDiff, array $fullOpenOrders, array $fullOrderBook, array $balance): array
+  private function baseStrategy(&$out, float $orderBookDiff, array $fullOpenOrders, array $fullOrderBook, array $balance): void
   {
-    $out = [];
-
     // If diff smaller than commission - cancel all orders
     if ($orderBookDiff < $this->diff) {
       $out[] = 'Diff smaller than commission:' . $orderBookDiff . '<' . $this->diff;
@@ -264,8 +278,6 @@ abstract class TradeBaseClass implements TradingInterface
         $this->tradeByOrder($balance, $fullOpenOrders, $fullOrderBook, $this->pair);
       }
     }
-
-    return $out;
   }
   #endregion
 
