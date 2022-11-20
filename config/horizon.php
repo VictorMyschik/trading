@@ -1,5 +1,6 @@
 <?php
 
+use App\Classes\TradingConfigClass;
 use Illuminate\Support\Str;
 
 return [
@@ -167,16 +168,10 @@ return [
   'defaults' => [
     'supervisor-1' => [
       'connection'   => 'redis',
-      'queue'        => [
-        'mnc_usd_queue',
-        'shib_usdt_queue',
-        'smart_rub_queue',
-        'mkr_dai_queue',
-        'btc_pln_queue',
-      ],
+      'queue'        => TradingConfigClass::getQueueList(),
       'balance'      => 'auto',
       'maxProcesses' => 1,
-      'memory'       => 128,
+      'memory'       => 512,
       'tries'        => 1,
       'nice'         => 0,
     ],
@@ -185,7 +180,7 @@ return [
   'environments' => [
     'production' => [
       'supervisor-1' => [
-        'maxProcesses'    => 10,
+        'maxProcesses'    => count(TradingConfigClass::getQueueList()),
         'balanceMaxShift' => 1,
         'balanceCooldown' => 5,
       ],
@@ -193,7 +188,7 @@ return [
 
     'local' => [
       'supervisor-1' => [
-        'maxProcesses' => 5,
+        'maxProcesses' => count(TradingConfigClass::getQueueList()),
       ],
     ],
   ],

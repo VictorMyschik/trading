@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Console\Commands\restart;
 use App\Http\Controllers\HomeController;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -35,6 +36,6 @@ class TradingJob implements ShouldQueue
     $object = new $class($this->input);
     $object->trade();
 
-    HomeController::tradingByStock($this->input);
+    restart::tradingByStock($this->input);
   }
 }

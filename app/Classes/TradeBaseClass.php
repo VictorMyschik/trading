@@ -3,7 +3,6 @@
 namespace App\Classes;
 
 use App\Helpers\MrDateTime;
-use Illuminate\Support\Facades\Log;
 
 abstract class TradeBaseClass implements TradingInterface
 {

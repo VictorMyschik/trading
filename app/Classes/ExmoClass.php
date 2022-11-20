@@ -2,7 +2,7 @@
 
 namespace App\Classes;
 
-use App\Helpers\MrCacheHelper;
+use App\Helpers\System\MrCacheHelper;
 use Carbon\Carbon;
 use Mockery\Exception;
 
@@ -20,7 +20,7 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
     $param = array('pair' => $this->pair);
     $history = $this->parseHistory(self::apiQuery('trades', $param));
 
-    foreach($book as $key => $item) {
+    foreach ($book as $key => $item) {
       $resultBook[] = array_merge($item, $history[$key] ?? array());
     }
 
@@ -31,10 +31,10 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
   {
     $rows = [];
 
-    if(!isset($data[$this->pair]['ask']))
+    if (!isset($data[$this->pair]['ask']))
       return $rows;
 
-    foreach($data[$this->pair]['ask'] as $key => $item) {
+    foreach ($data[$this->pair]['ask'] as $key => $item) {
       $row = array();
       $row['PriceSell'] = round($item[0], 8);
       $row['QuantitySell'] = round($item[1], 4);
@@ -53,10 +53,10 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
   protected function parseHistory(array $data): array
   {
     $out = array();
-    if(!isset($data[$this->pair]))
+    if (!isset($data[$this->pair]))
       return $out;
 
-    foreach($data[$this->pair] as $row) {
+    foreach ($data[$this->pair] as $row) {
       $item = array();
 
       $item['KindTraded'] = $row['type'] == 'buy' ? self::KIND_BUY : self::KIND_SELL;
@@ -75,10 +75,10 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
 
   protected function getPricePrecision(): array
   {
-    if(!count($this->precision)) {
-      $this->precision = MrCacheHelper::GetCachedData(self::class . '_price_precision', function() {
+    if (!count($this->precision)) {
+      $this->precision = MrCacheHelper::GetCachedData(self::class . '_price_precision', function () {
         $pairs = [];
-        foreach(self::getPairsSettings() as $key => $item) {
+        foreach (self::getPairsSettings() as $key => $item) {
           $pairs[$key] = $item['price_precision'];
         }
         ksort($pairs);
@@ -92,7 +92,7 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
 
   protected function getPairsSettings(): array
   {
-    return MrCacheHelper::GetCachedData(self::class . '_PairsSettings', function() {
+    return MrCacheHelper::GetCachedData(self::class . '_PairsSettings', function () {
       return $this->apiQuery('pair_settings', array());
     });
   }
@@ -103,8 +103,8 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
 
     $balanceOut = array();
 
-    if(isset($response['balances'])) {
-      foreach($response['balances'] as $cryptoName => $balance) {
+    if (isset($response['balances'])) {
+      foreach ($response['balances'] as $cryptoName => $balance) {
         $balanceOut[$cryptoName] = (float)$balance;
       }
     }
@@ -137,14 +137,13 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
   {
     $list = $this->apiQuery('user_open_orders', array());
 
-    if(isset($list['result'])) {
+    if (isset($list['result'])) {
       return [];
-    }
-    else {
+    } else {
       $out = array();
-      foreach($list as $row) {
-        if(is_array($row)) {
-          foreach($row as $item) {
+      foreach ($list as $row) {
+        if (is_array($row)) {
+          foreach ($row as $item) {
             $out[] = $item;
           }
         }
@@ -176,7 +175,7 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
 
     static $ch = null;
 
-    if(is_null($ch)) {
+    if (is_null($ch)) {
       $ch = curl_init();
       curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
       curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/4.0 (compatible; PHP client; ' . php_uname('s') . '; PHP/' . phpversion() . ')');
@@ -188,11 +187,11 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
 
     // run the query
     $res = curl_exec($ch);
-    if($res === false) {
+    if ($res === false) {
       throw new Exception('Could not get reply: ' . curl_error($ch));
     }
     $dec = @json_decode($res, true);
-    if($dec === null) {
+    if ($dec === null) {
       throw new Exception('Invalid data received, please make sure connection is working and requested API exists');
     }
 
