@@ -40,8 +40,9 @@ abstract class TradeBaseClass implements TradingInterface
     $out['Time'] = MrDateTime::now()->getFullTime();
     $balance = $this->getBalance();
 
-    if (!isset($balance[explode('_', $this->pair)[1]]))
+    if (!isset($balance[explode('_', $this->pair)[1]])) {
       return $out;
+    }
 
     $out['Balance'] = $balance[explode('_', $this->pair)[1]];
 
@@ -70,8 +71,8 @@ abstract class TradeBaseClass implements TradingInterface
     }
 
     MrDateTime::StopItem(time());
-    $work_time = MrDateTime::GetTimeResult();
-    $out['WorkTime'] = reset($work_time);
+    $workTime = MrDateTime::GetTimeResult();
+    $out['WorkTime'] = reset($workTime);
 
     return $out;
   }
@@ -126,8 +127,9 @@ abstract class TradeBaseClass implements TradingInterface
     $sum = 0;
     foreach ($orderBook as $item) {
       // exclude self order
-      if ($item[$priceKeyName] == $price)
+      if ($item[$priceKeyName] == $price) {
         continue;
+      }
 
       $sum += $item[$sumKeyName];
       if ($sum > $this->skipSum) {
@@ -157,7 +159,7 @@ abstract class TradeBaseClass implements TradingInterface
     return true;
   }
 
-  private function tradeByOrder(array $balance, array $fullOpenOrders, array $order_book, string $pairName): void
+  private function tradeByOrder(array $balance, array $fullOpenOrders, array $orderBook, string $pairName): void
   {
     $currencyFirst = explode('_', $pairName)[0];
     $currencySecond = explode('_', $pairName)[1];
@@ -175,7 +177,7 @@ abstract class TradeBaseClass implements TradingInterface
       }
 
       // Create new order
-      $newPrice = $this->getNewPrice($order_book, self::KIND_SELL, $pairName);
+      $newPrice = $this->getNewPrice($orderBook, self::KIND_SELL, $pairName);
       $this->addOrder($newPrice, $pairName, self::KIND_SELL, $balanceValue);
 
       return;
@@ -195,7 +197,7 @@ abstract class TradeBaseClass implements TradingInterface
       }
 
       // Create new order
-      $newPrice = $this->getNewPrice($order_book, self::KIND_BUY, $pairName);
+      $newPrice = $this->getNewPrice($orderBook, self::KIND_BUY, $pairName);
 
       $quantity = $allowMaxTradeSum / $newPrice;
 
@@ -224,11 +226,11 @@ abstract class TradeBaseClass implements TradingInterface
     }
 
     if ($type == self::KIND_SELL) {
-      $old_price_sell = (float)$orderBookItem['PriceSell'];
-      $newPrice = $old_price_sell - $precisionDiff;
+      $oldPriceSell = (float)$orderBookItem['PriceSell'];
+      $newPrice = $oldPriceSell - $precisionDiff;
     } else { // Buy
-      $old_price_buy = (float)$orderBookItem['PriceBuy'];
-      $newPrice = $old_price_buy + $precisionDiff;
+      $oldPriceBuy = (float)$orderBookItem['PriceBuy'];
+      $newPrice = $oldPriceBuy + $precisionDiff;
     }
 
     return round($newPrice, $precision);

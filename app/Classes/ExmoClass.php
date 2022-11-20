@@ -31,8 +31,9 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
   {
     $rows = [];
 
-    if (!isset($data[$this->pair]['ask']))
+    if (!isset($data[$this->pair]['ask'])) {
       return $rows;
+    }
 
     foreach ($data[$this->pair]['ask'] as $key => $item) {
       $row = array();
@@ -57,13 +58,12 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
   private function apiQuery($apiName, array $req = []): mixed
   {
     $mt = explode(' ', microtime());
-    $NONCE = $mt[1] . substr($mt[0], 2, 6);
     // API settings
     $url = "https://api.exmo.com/v1.1/$apiName";
-    $req['nonce'] = $NONCE;
+    $req['nonce'] = $mt[1] . substr($mt[0], 2, 6);
     // generate the POST data string
-    $post_data = http_build_query($req);
-    $sign = hash_hmac('sha512', $post_data, env('EXMO_SECRET'));
+    $postData = http_build_query($req);
+    $sign = hash_hmac('sha512', $postData, env('EXMO_SECRET'));
     // generate the extra headers
     $headers = array(
       'Sign: ' . $sign,
@@ -78,7 +78,7 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
       curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/4.0 (compatible; PHP client; ' . php_uname('s') . '; PHP/' . phpversion() . ')');
     }
     curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
@@ -98,8 +98,9 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
   protected function parseHistory(array $data): array
   {
     $out = array();
-    if (!isset($data[$this->pair]))
+    if (!isset($data[$this->pair])) {
       return $out;
+    }
 
     foreach ($data[$this->pair] as $row) {
       $item = array();
@@ -159,8 +160,8 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
 
   protected function addOrder(float $price, string $pairName, string $kind, float $quantity): mixed
   {
-    $tmp_num = (explode('.', $quantity));
-    $precisionDiff = pow(10, -strlen($tmp_num[1]));
+    $tmpNum = (explode('.', $quantity));
+    $precisionDiff = pow(10, -strlen($tmpNum[1]));
     $finalQuantity = $quantity - $precisionDiff;
 
     $parameters = array(

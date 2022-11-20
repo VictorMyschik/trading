@@ -65,7 +65,7 @@ class YobitClass extends TradeBaseClass implements TradingInterface
     if ($this->precision) {
       return $this->precision;
     } else {
-      $this->precision = MrCacheHelper::GetCachedData('yobit_price_precision', function () use ($delimiter) {
+      $this->precision = MrCacheHelper::GetCachedData('yobit_price_precision', function () {
         $pairs = array();
         foreach ($this->getPairsSettings() as $key => $item) {
           $pairs[$key] = $item['decimal_places'];
@@ -81,8 +81,8 @@ class YobitClass extends TradeBaseClass implements TradingInterface
 
   public function addOrder(float $price, string $pairName, string $kind, float $quantity): mixed
   {
-    $tmp_num = explode('.', $quantity);
-    $tmp1 = $tmp_num[1] ?? 0;
+    $tmpNum = explode('.', $quantity);
+    $tmp1 = $tmpNum[1] ?? 0;
     $precisionDiff = pow(10, -strlen($tmp1));
     $finalQuantity = $quantity - $precisionDiff;
     $parameters = array(
@@ -95,13 +95,13 @@ class YobitClass extends TradeBaseClass implements TradingInterface
     return $this->apiQuery('Trade', $parameters);
   }
 
-  protected function apiQuery($api_name, array $req = array()): mixed
+  protected function apiQuery($apiName, array $req = array()): mixed
   {
-    $req['method'] = $api_name;
+    $req['method'] = $apiName;
     $req['nonce'] = time() + rand(1, 5);
 
-    $post_data = http_build_query($req, '', '&');
-    $sign = hash_hmac("sha512", $post_data, env('YOBIT_SECRET'));
+    $postData = http_build_query($req, '', '&');
+    $sign = hash_hmac("sha512", $postData, env('YOBIT_SECRET'));
     $headers = array(
       'Sign: ' . $sign,
       'Key: ' . env('YOBIT_KEY'),
@@ -112,13 +112,13 @@ class YobitClass extends TradeBaseClass implements TradingInterface
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/4.0 (compatible; SMART_API PHP client; ' . php_uname('s') . '; PHP/' . phpversion() . ')');
     curl_setopt($ch, CURLOPT_URL, 'https://yobit.net/tapi/');
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_ENCODING, 'gzip');
     $res = curl_exec($ch);
     if ($res === false) {
-      $e = curl_error($ch);
+      curl_error($ch);
       curl_close($ch);
 
       return null;
@@ -128,28 +128,28 @@ class YobitClass extends TradeBaseClass implements TradingInterface
     return json_decode($res, true);
   }
 
-  public function cancelOrder(int $order_id)
+  public function cancelOrder(int $orderId)
   {
-    $this->apiQuery('CancelOrder', ["order_id" => $order_id]);
+    $this->apiQuery('CancelOrder', ["order_id" => $orderId]);
   }
 
   public function getBalance(): array
   {
     $response = $this->apiQuery('getInfo', []);
 
-    $balance_out_array = array();
+    $balanceOutArray = array();
     if (isset($response['return'])) {
       foreach ($response['return']['funds'] as $crypto_name => $balance) {
-        $balance_out_array[$crypto_name] = (float)$balance;
+        $balanceOutArray[$crypto_name] = (float)$balance;
       }
     }
 
-    return $balance_out_array;
+    return $balanceOutArray;
   }
 
   public function getOrderBook(int $limit = 100): array
   {
-    $result_book = array();
+    $resultBook = array();
     $urlBook = "https://yobit.net/api/3/depth/$this->pair?limit=50";
     $book = $this->parseOrderBook($this->api($urlBook));
 
@@ -157,10 +157,10 @@ class YobitClass extends TradeBaseClass implements TradingInterface
     $history = $this->parseHistory($this->api($urlHistory));
 
     foreach ($book as $key => $item) {
-      $result_book[] = array_merge($item, $history[$key] ?? array());
+      $resultBook[] = array_merge($item, $history[$key] ?? array());
     }
 
-    return $result_book;
+    return $resultBook;
   }
 
   public function parseOrderBook(array $data): array
