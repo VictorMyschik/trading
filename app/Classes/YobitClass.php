@@ -149,18 +149,15 @@ class YobitClass extends TradeBaseClass implements TradingInterface
 
   public function getOrderBook(int $limit = 100): array
   {
-    $resultBook = array();
     $urlBook = "https://yobit.net/api/3/depth/$this->pair?limit=50";
-    $book = $this->parseOrderBook($this->api($urlBook));
+    return $this->parseOrderBook($this->api($urlBook));
+  }
 
+  public function getHistory(): array
+  {
     $urlHistory = "https://yobit.net/api/3/trades/$this->pair?limit=50";
-    $history = $this->parseHistory($this->api($urlHistory));
+    return $this->parseHistory($this->api($urlHistory));
 
-    foreach ($book as $key => $item) {
-      $resultBook[] = array_merge($item, $history[$key] ?? array());
-    }
-
-    return $resultBook;
   }
 
   public function parseOrderBook(array $data): array

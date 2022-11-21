@@ -19,12 +19,14 @@ abstract class TradeBaseClass implements TradingInterface
   protected array $precision = [];
 
   public const STRATEGY_BASE = 1;
+  public const STRATEGY_SMART_ANALISE = 2;
 
 
   public static function getStrategyList(): array
   {
     return [
-      self::STRATEGY_BASE => 'Базовая'
+      self::STRATEGY_BASE          => 'Базовая',
+      self::STRATEGY_SMART_ANALISE => 'Аналитика истории'
     ];
   }
 
@@ -71,7 +73,16 @@ abstract class TradeBaseClass implements TradingInterface
 
     $this->calculatedOpenOrders = $this->groupOpenOrders($fullOpenOrders);
 
-    $this->baseStrategy($out, $orderBookDiff, $fullOpenOrders, $fullOrderBook, $balance);
+    switch ($this->strategy) {
+      case self::STRATEGY_BASE:
+        $this->baseStrategy($out, $orderBookDiff, $fullOpenOrders, $fullOrderBook, $balance);
+        break;
+      case self::STRATEGY_SMART_ANALISE:
+        $this->smartAnaliseStrategy($out, $fullOpenOrders, $fullOrderBook, $balance);
+        break;
+      default:
+        abort(500, 'Unknown strategy');
+    }
 
     MrDateTime::StopItem(time());
     $workTime = MrDateTime::GetTimeResult();
@@ -247,6 +258,7 @@ abstract class TradeBaseClass implements TradingInterface
       }
 
       $parameter = [
+        'strategy'  => $item->getStrategy(),
         'stock'     => $item->getStock()->getName(),
         'diff'      => $item->getDifferent(),
         'maxTrade'  => $item->getMaxTrade(),
@@ -279,6 +291,118 @@ abstract class TradeBaseClass implements TradingInterface
       }
     }
   }
+
+  private function smartAnaliseStrategy(&$out, array $fullOpenOrders, array $fullOrderBook, array $balance): void
+  {
+    $history = $this->getHistory();
+
+    $currentOrders = reset($fullOrderBook);
+    $currentPriceBuy = $currentOrders['PriceBuy'];
+    $currentPriceSell = $currentOrders['PriceSell'];
+
+
+    /// Find Price Buy
+    // Actual price to open order for buy
+    $priceSuy = array_column($history['sell'], 'PriceTraded');
+    $minBuy = min($priceSuy);
+
+    // 2/3 percent of diff
+    $diff = ($currentPriceBuy * 100 / $minBuy - 100) / 5 * 1;
+    $finalPriceBuy = $currentPriceBuy - ($currentPriceBuy / 100 * $diff);
+    $finalPriceBuy = round($finalPriceBuy, $this->getPricePrecision()[$this->pair]);
+
+    /// Find Price Sell
+    // Actual price to open order for sale
+    $priceBuy = array_column($history['buy'], 'PriceTraded');
+    $maxSell = max($priceBuy);
+
+    // 2/3 percent of diff
+    $diff = ($maxSell * 100 / $currentPriceSell - 100) / 5 * 1;
+    $finalPriceSell = $currentPriceSell / 100 * $diff + $currentPriceSell;
+    $finalPriceSell = round($finalPriceSell, $this->getPricePrecision()[$this->pair]);
+
+    $commissionTakerMaker = ($this->getPairsSettings()[$this->pair]['commission_maker_percent']) * 3; // %
+
+    // Cancel Open Orders
+    $d = $finalPriceSell * 100 / $finalPriceBuy - 100;
+    if ($d < $commissionTakerMaker) {
+      foreach ($fullOpenOrders as $openOrder) {
+        if ($openOrder['pair'] === $this->pair) {
+          $out['cancelOrder'] = $openOrder['order_id'];
+          $this->cancelOrder($openOrder['order_id']);
+        }
+      }
+    }
+
+    // Trade
+    [$currencyFirst, $currencySecond] = explode('_', $this->pair);
+
+    $balanceValue = $balance[$currencyFirst] ?? 0;
+
+    /// Sell MNX
+    // Correct opened order
+    foreach ($fullOpenOrders as $openOrder) {
+      if ($openOrder['type'] === self::KIND_SELL
+        && $this->pair === $openOrder['pair']
+        && $openOrder['price'] !== $finalPriceSell
+      ) {
+        $this->cancelOrder($openOrder['order_id']);
+        return;
+      }
+    }
+
+    if ($balanceValue > $this->quantityMin) {
+      // Cancel open orders. Disable many orders, one only
+      foreach ($fullOpenOrders as $openOrder) {
+        if ($openOrder['type'] === self::KIND_SELL && $this->pair === $openOrder['pair']) {
+          $this->cancelOrder($openOrder['order_id']);
+
+          return;
+        }
+      }
+
+      // Create new order
+      $this->addOrder($finalPriceSell, $this->pair, self::KIND_SELL, $balanceValue);
+    }
+
+
+    /// Buy MNX
+    // Correct opened order
+    foreach ($fullOpenOrders as $openOrder) {
+      if ($openOrder['type'] === self::KIND_BUY
+        && $this->pair === $openOrder['pair']
+        && $openOrder['price'] !== $finalPriceBuy
+      ) {
+        $this->cancelOrder($openOrder['order_id']);
+        return;
+      }
+    }
+
+    $balanceValue = $balance[$currencySecond] ?? 0;
+    if ($balanceValue > 0.01) {
+      $allowMaxTradeSum = min($balanceValue, $this->quantityMax);
+
+      foreach ($fullOpenOrders as $openOrder) {
+        if ($openOrder['type'] === self::KIND_BUY && $this->pair === $openOrder['pair']) {
+          $this->cancelOrder($openOrder['order_id']);
+
+          return;
+        }
+      }
+
+      // Create new order
+      $quantity = $allowMaxTradeSum / $finalPriceBuy;
+
+      if ($quantity <= $this->quantityMin) {
+        return;
+      }
+
+      $this->addOrder($finalPriceBuy, $this->pair, self::KIND_BUY, $quantity);
+    }
+
+    sleep(2);
+  }
+
   #endregion
 
   #region Commands
@@ -293,6 +417,7 @@ abstract class TradeBaseClass implements TradingInterface
     echo exec('php artisan config:clear') . '<br>';
     echo exec('php artisan cache:clear') . '<br>';
     echo exec('redis-cli -h localhost -p 6379 flushdb') . '<br>';
+    echo exec('php artisan horizon:pause') . '<br>';
     echo exec('php artisan horizon:clear') . '<br>';
   }
 

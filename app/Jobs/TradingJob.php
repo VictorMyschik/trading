@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Classes\TradeBaseClass;
-use App\Console\Commands\restart;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;

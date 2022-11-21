@@ -80,6 +80,7 @@ class MrTradingEditForm extends MrFormBase
     $trading = MrTrading::loadBy($trading_id) ?: new MrTrading();
 
     $trading->setStockID($this->v['StockID']);
+    $trading->setStrategy($this->v['Strategy']);
     $trading->setPair($this->v['Pair']);
     $trading->setDifferent($this->v['Different']);
     $trading->setMaxTrade($this->v['MaxTrade']);

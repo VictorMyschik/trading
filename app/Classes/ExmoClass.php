@@ -13,18 +13,14 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
    */
   public function getOrderBook(int $limit = 25): array
   {
-    $resultBook = array();
     $param = array('pair' => $this->pair, 'limit' => $limit);
-    $book = $this->parseOrderBook(self::apiQuery('order_book', $param));
 
-    $param = array('pair' => $this->pair);
-    $history = $this->parseHistory(self::apiQuery('trades', $param));
+    return $this->parseOrderBook(self::apiQuery('order_book', $param));
+  }
 
-    foreach ($book as $key => $item) {
-      $resultBook[] = array_merge($item, $history[$key] ?? array());
-    }
-
-    return $resultBook;
+  public function getHistory(): array
+  {
+    return $this->parseHistory(self::apiQuery('trades', ['pair' => $this->pair]));
   }
 
   private function parseOrderBook(array $data): array
@@ -105,15 +101,14 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
     foreach ($data[$this->pair] as $row) {
       $item = array();
 
-      $item['KindTraded'] = $row['type'] == 'buy' ? self::KIND_BUY : self::KIND_SELL;
-      $item['QuantityTraded'] = round($row['quantity'], 4);
-      $item['PriceTraded'] = round($row['price'], 5);
+      $item['QuantityTraded'] = round($row['quantity'], 8);
+      $item['PriceTraded'] = round($row['price'], 8);
 
-      $item['SumTraded'] = round($row['amount'], 5);
+      $item['SumTraded'] = round($row['amount'], 8);
       $item['TimeTraded'] = Carbon::createFromTimestamp($row['date'])->toDateTime()->format('H:i:s');
       $item['timestamp'] = $row['date'];
 
-      $out[] = $item;
+      $out[$row['type'] == 'buy' ? self::KIND_BUY : self::KIND_SELL][] = $item;
     }
 
     return $out;
@@ -124,7 +119,7 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
     if (!count($this->precision)) {
       $this->precision = MrCacheHelper::GetCachedData(self::class . '_price_precision', function () {
         $pairs = [];
-        foreach (self::getPairsSettings() as $key => $item) {
+        foreach ($this->getPairsSettings() as $key => $item) {
           $pairs[$key] = $item['price_precision'];
         }
         ksort($pairs);

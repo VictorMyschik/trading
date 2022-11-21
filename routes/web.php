@@ -11,7 +11,7 @@ Route::get('/', function() {
 
 Auth::routes();
 
-Route::get('/test', [App\Http\Controllers\MrTestController::class, 'test'])->name('test_page');
+Route::get('/test', [App\Http\Controllers\MrTestController::class, 'index'])->name('test_page');
 
 Route::group(['middleware' => ['auth']], function() {
   Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name('home');
