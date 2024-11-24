@@ -1,0 +1,70 @@
+networks:
+  frontend:
+    external: true
+  backend:
+
+services:
+  nginx:
+    build: ./docker/nginx
+    container_name: nginx_trading
+    volumes:
+      - ./docker/logs/nginx:/var/log/nginx
+      - .:/var/www/trading
+    environment:
+      - VIRTUAL_HOST=trading.test
+    ports:
+      - "80:80"
+    networks:
+      frontend:
+      backend:
+        aliases:
+          - trading.test
+
+  php:
+    build: ./docker/php
+    container_name: php_trading
+    networks:
+      - backend
+    environment:
+      - COMPOSER_MEMORY_LIMIT=2G
+      - XDEBUG_SESSION="PHPSTORM"
+    volumes:
+      - .:/var/www/trading
+      - ./storage/logs:/var/log/php
+      - ./docker/php/php.ini:/usr/local/etc/php/php.ini
+
+  postgres:
+    image: postgres:latest
+    networks:
+      frontend:
+      backend:
+    ports:
+      - '5431:5432'
+    environment:
+      POSTGRES_DB: trading
+      POSTGRES_USER: trading
+      POSTGRES_PASSWORD: trading
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - ./docker/postgres/trading:/var/lib/postgresql/data
+
+  redis:
+    image: bitnami/redis:latest
+    networks:
+      - backend
+      - frontend
+    ports:
+      - '6379:6379'
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+
+  supervisor:
+    build: ./docker/supervisor
+    container_name: trading
+    networks:
+      - backend
+    volumes:
+      - .:/var/www/trading
+      - ./storage/logs:/var/log/php
+      - ./docker/php/php.ini:/usr/local/etc/php/php.ini
+      - ./docker/php/opcache.ini:/usr/local/etc/php/conf.d/opcache.ini
