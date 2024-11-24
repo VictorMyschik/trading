@@ -21,6 +21,7 @@ class ExmoPairsDiff
                 $orderBook = $this->getOrderBook($pair);
 
                 $result[$pair] = [
+                    'pair'   => $pair,
                     'middle' => $this->setSkipSum($orderBook),
                     'period' => $this->calculatePeriod($orderBook),
                     'diff'   => $this->calculateDifferentPrice($orderBook)
@@ -29,6 +30,11 @@ class ExmoPairsDiff
 
             }
         }
+
+        // sort by diff
+        usort($result, function ($a, $b) {
+            return $a['diff'] <=> $b['diff'];
+        });
 
         return $result;
     }

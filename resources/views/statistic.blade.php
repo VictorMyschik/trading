@@ -16,7 +16,7 @@
                 <tbody>
                 @foreach($list as $key => $row)
                     <tr>
-                        <td>{{$key}}</td>
+                        <td>{{$row['pair']}}</td>
                         <td>{{$row['middle']}}</td>
                         <td>{{$row['period']}}</td>
                         <td>{{$row['diff']}}</td>
