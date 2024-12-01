@@ -18,7 +18,7 @@ class TradingJob implements ShouldQueue
   public function __construct(array $input)
   {
     $this->input = $input;
-    $this->connection = 'redis';
+    $this->connection = 'database';
     $this->queue = $input['queueName'];
   }
 

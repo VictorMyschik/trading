@@ -81,7 +81,7 @@ class MrTrading extends ORM
 
   public function getStrategy(): int
   {
-    return $this->Strategy;
+    return TradeBaseClass::STRATEGY_BASE;
   }
 
   public function setStrategy(int $value): void
