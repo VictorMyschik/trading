@@ -157,7 +157,7 @@ class ExmoClass extends TradeBaseClass implements TradingInterface
 
     protected function addOrder(float $price, string $pairName, string $kind, float $quantity): mixed
     {
-        $tmpNum = (explode('.', $quantity));
+        $tmpNum = (explode('.', (string)$quantity));
         $precisionDiff = pow(10, -strlen($tmpNum[1]));
         $finalQuantity = $quantity - $precisionDiff;
 

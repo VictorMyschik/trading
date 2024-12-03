@@ -1,25 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Classes;
 
-use App\Helpers\MrDateTime;
+use App\Classes\Client\PayeerClient;
+use App\Classes\DTO\Components\OpenOrderComponent;
 use App\Jobs\TradingJob;
 use App\Models\MrTrading;
 
 abstract class TradeBaseClass implements TradingInterface
 {
-    public const KIND_SELL = 'sell';
-    public const KIND_BUY = 'buy';
-    protected string $pair;
-    protected float $diff;
-    protected int $quantityMax;
-    protected float $quantityMin;
-    protected array $calculatedOpenOrders;
-    protected float $skipSum = 15;
+    public const string KIND_SELL = 'sell';
+    public const string KIND_BUY = 'buy';
     protected array $precision = [];
 
-    public const STRATEGY_BASE = 1;
-    public const STRATEGY_SMART_ANALISE = 2;
+    public const int STRATEGY_BASE = 1;
+    public const int STRATEGY_SMART_ANALISE = 2;
+    protected mixed $quantityMin;
+    protected array $calculatedOpenOrders;
+    protected PayeerClient $client;
 
 
     public static function getStrategyList(): array
@@ -30,65 +30,50 @@ abstract class TradeBaseClass implements TradingInterface
         ];
     }
 
-    public function __construct(array $input)
+    public function __construct(
+        public int       $strategy,
+        public float|int $skipSum,
+        public string    $pair,
+        public float     $diff,
+        public float|int $quantityMax,
+    )
     {
-        if (!isset(self::getStrategyList()[$input['strategy']])) {
-            MrTrading::where('Pair', $input['pair'])->update(['IsActive' => 0]);
-        }
-
-        $this->strategy = $input['strategy'];
-
-        $this->skipSum = $input['skipSum'];
-        $this->pair = $input['pair'];
-        $this->diff = $input['diff'];
-        $this->quantityMax = $input['maxTrade'];
-        $this->quantityMin = $this->getPairsSettings()[$this->pair]['min_quantity'];
+        $this->client = new PayeerClient();
+        $this->quantityMin = $this->getPairsSettings()['pairs'][$this->pair]['min_value'];
     }
 
-    public function trade(): array
+    public function trade(): void
     {
-        MrDateTime::Start();
-
         $fullOrderBook = $this->getOrderBook();
         if (!count($fullOrderBook)) {
-            return ['Order book is empty'];
+            return;
         }
-        //$this->setSkipSum($input['orderBook']);
-
-        $out = array();
-        $out['Pair'] = $this->pair;
-        $out['Time'] = MrDateTime::now()->getFullTime();
         $balance = $this->getBalance();
 
         if (!isset($balance[explode('_', $this->pair)[1]])) {
-            return $out;
+            return;
         }
 
-        $out['Balance'] = $balance[explode('_', $this->pair)[1]];
-
-        $orderBookDiff = round($fullOrderBook[0]['PriceSell'] * 100 / (float)$fullOrderBook[0]['PriceBuy'] - 100, 2);
-        $out['OrderBookDiff'] = $orderBookDiff;
-
+        $orderBookDiff = $this->getOrderBookDiff($fullOrderBook);
         $fullOpenOrders = $this->getOpenOrder();
 
         $this->calculatedOpenOrders = $this->groupOpenOrders($fullOpenOrders);
 
         switch ($this->strategy) {
             case self::STRATEGY_BASE:
-                $this->baseStrategy($out, $orderBookDiff, $fullOpenOrders, $fullOrderBook, $balance);
+                $this->baseStrategy($orderBookDiff, $fullOpenOrders, $fullOrderBook, $balance);
                 break;
             case self::STRATEGY_SMART_ANALISE:
-                $this->smartAnaliseStrategy($out, $fullOpenOrders, $fullOrderBook, $balance);
+                $this->smartAnaliseStrategy($fullOpenOrders, $fullOrderBook, $balance);
                 break;
             default:
-                abort(500, 'Unknown strategy');
+                throw new \Exception('Unknown strategy');
         }
+    }
 
-        MrDateTime::StopItem(time());
-        $workTime = MrDateTime::GetTimeResult();
-        $out['WorkTime'] = reset($workTime);
-
-        return $out;
+    private function getOrderBookDiff(array $fullOrderBook): float
+    {
+        return round($fullOrderBook[0]->priceSell * 100 / (float)$fullOrderBook[0]->priceBuy - 100, 2);
     }
 
     /**
@@ -98,11 +83,12 @@ abstract class TradeBaseClass implements TradingInterface
     {
         $openOrders = [];
 
+        /** @var OpenOrderComponent $item */
         foreach ($data as $item) {
-            if (isset($openOrders[$item['pair']])) {
-                $openOrders[$item['pair']] += round($item['amount'], 8);
+            if (isset($openOrders[$item->pair])) {
+                $openOrders[$item->pair] += round($item->amount, 8);
             } else {
-                $openOrders[$item['pair']] = round($item['amount'], 8);
+                $openOrders[$item->pair] = round($item->amount, 8);
             }
         }
 
@@ -111,12 +97,13 @@ abstract class TradeBaseClass implements TradingInterface
 
     private function correctHasOrders(array $fullOpenOrder, array $orderBook): bool
     {
+        /** @var OpenOrderComponent $openOrder */
         foreach ($fullOpenOrder as $openOrder) {
             // Has open order
-            if ($this->pair === $openOrder['pair']) {
+            if ($this->pair === $openOrder->pair) {
                 // Update order
                 if (!$this->isActual($openOrder, $orderBook)) {
-                    $this->cancelOrder($openOrder['order_id']);
+                    $this->cancelOrder($openOrder->orderId);
 
                     return true;
                 }
@@ -126,14 +113,19 @@ abstract class TradeBaseClass implements TradingInterface
         return false;
     }
 
-    private function isActual(array $openOrder, array $orderBook): bool
+    protected function cancelOrder(int $orderId): void
     {
-        $kind = $openOrder['type'];
-        $price = $openOrder['price'] ?? $openOrder['rate'];
+        $this->client->cancelOrder($orderId);
+    }
 
-        $precision = $this->getPricePrecision()[$openOrder['pair']];
-        $priceKeyName = ($kind == self::KIND_SELL) ? 'PriceSell' : 'PriceBuy';
-        $sumKeyName = ($kind == self::KIND_SELL) ? 'SumSell' : 'SumBuy';
+    private function isActual(OpenOrderComponent $openOrder, array $orderBook): bool
+    {
+        $kind = $openOrder->type;
+        $price = $openOrder->price ?? $openOrder['rate'];
+
+        $precision = $this->getPricePrecision()[$openOrder->pair];
+        $priceKeyName = ($kind == self::KIND_SELL) ? 'priceSell' : 'priceBuy';
+        $sumKeyName = ($kind == self::KIND_SELL) ? 'sumSell' : 'sumBuy';
 
         $myOpenPrice = round($price, $precision);
 
@@ -141,18 +133,18 @@ abstract class TradeBaseClass implements TradingInterface
         $sum = 0;
         foreach ($orderBook as $item) {
             // exclude self order
-            if ($item[$priceKeyName] == $price) {
+            if ($item->$priceKeyName == $price) {
                 continue;
             }
 
-            $sum += $item[$sumKeyName];
+            $sum += $item->$sumKeyName;
             if ($sum > $this->skipSum) {
                 $orderBookItem = $item;
                 break;
             }
         }
 
-        $orderPrice = $orderBookItem[$priceKeyName];
+        $orderPrice = $orderBookItem->$priceKeyName;
 
         if ($kind == self::KIND_SELL) {
             $precisionDiff = pow(10, -$precision);
@@ -184,7 +176,7 @@ abstract class TradeBaseClass implements TradingInterface
             // Cancel open orders. Disable many orders, one only
             foreach ($fullOpenOrders as $openOrder) {
                 if ($openOrder['type'] === self::KIND_SELL && $this->pair === $openOrder['pair']) {
-                    $this->cancelOrder($openOrder['order_id']);
+                    $this->cancelOrder($openOrder->order_id);
 
                     return;
                 }
@@ -232,7 +224,7 @@ abstract class TradeBaseClass implements TradingInterface
         $orderBookItem = $orderBook[0];
         $sum = 0;
         foreach ($orderBook as $item) {
-            $sum += ($type == self::KIND_SELL) ? $item['SumSell'] : $item['SumBuy'];
+            $sum += ($type == self::KIND_SELL) ? $item->sumSell : $item->sumBuy;
             if ($sum > $this->skipSum) {
                 $orderBookItem = $item;
                 break;
@@ -240,10 +232,10 @@ abstract class TradeBaseClass implements TradingInterface
         }
 
         if ($type == self::KIND_SELL) {
-            $oldPriceSell = (float)$orderBookItem['PriceSell'];
+            $oldPriceSell = (float)$orderBookItem->priceSell;
             $newPrice = $oldPriceSell - $precisionDiff;
         } else { // Buy
-            $oldPriceBuy = (float)$orderBookItem['PriceBuy'];
+            $oldPriceBuy = (float)$orderBookItem->priceBuy;
             $newPrice = $oldPriceBuy + $precisionDiff;
         }
 
@@ -272,27 +264,24 @@ abstract class TradeBaseClass implements TradingInterface
     }
 
     #region Strategics
-    private function baseStrategy(&$out, float $orderBookDiff, array $fullOpenOrders, array $fullOrderBook, array $balance): void
+    private function baseStrategy(float $orderBookDiff, array $fullOpenOrders, array $fullOrderBook, array $balance): void
     {
         // If diff smaller than commission - cancel all orders
         if ($orderBookDiff < $this->diff) {
-            $out[] = 'Diff smaller than commission:' . $orderBookDiff . '<' . $this->diff;
             foreach ($fullOpenOrders as $openOrder) {
                 if ($openOrder['pair'] === $this->pair) {
-                    $out['cancelOrder'] = $openOrder['order_id'];
-                    $this->cancelOrder($openOrder['order_id']);
+                    $this->cancelOrder($openOrder->order_id);
                 }
             }
         } else {
             $needRestart = $this->correctHasOrders($fullOpenOrders, $fullOrderBook);
-            $out['$needRestart'] = (string)$needRestart;
             if (!$needRestart) {
                 $this->tradeByOrder($balance, $fullOpenOrders, $fullOrderBook, $this->pair);
             }
         }
     }
 
-    private function smartAnaliseStrategy(&$out, array $fullOpenOrders, array $fullOrderBook, array $balance): void
+    private function smartAnaliseStrategy(array $fullOpenOrders, array $fullOrderBook, array $balance): void
     {
         $history = $this->getHistory();
 
