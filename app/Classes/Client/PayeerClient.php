@@ -6,7 +6,7 @@ namespace App\Classes\Client;
 
 use GuzzleHttp\Client;
 
-class PayeerClient
+class PayeerClient implements StockClientInterface
 {
     private const string HOST = 'https://payeer.com';
 

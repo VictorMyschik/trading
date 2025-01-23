@@ -1,20 +1,19 @@
 <?php
 
-namespace App\Classes\Trade;
+namespace App\Classes;
 
-use App\Classes\TradeBaseClass;
-use App\Classes\TradingInterface;
+use App\Classes\DTO\Components\OpenOrderComponent;
+use App\Classes\DTO\Components\OrderBookComponent;
 use App\Helpers\MrCacheHelper;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 
-class YobitClass extends TradeBaseClass implements TradingInterface
+class Yobit extends TradeBaseClass implements TradingInterface
 {
     protected array $precision = [];
 
     public function getPairsByName(string $name, string $delimiter = '/'): array
     {
-        $pairs = array();
-
         foreach ($this->getPairsSettings() as $key => $item) {
             $tmp = explode('_', (string)mb_convert_case($key, MB_CASE_UPPER, "UTF-8"));
 
@@ -32,10 +31,17 @@ class YobitClass extends TradeBaseClass implements TradingInterface
 
     public function getPairsSettings(): array
     {
-        return MrCacheHelper::GetCachedData(self::class . '_pairs', function () {
-            $url = "https://yobit.net/api/3/info";
+        return Cache::rememberForever('yobit_pairs_settings', function () {
+            $list = $this->client->getPairSettings();
+            $newList = [];
+            foreach ($list['pairs'] as $key => $item) {
+                $newList['pairs'][strtoupper($key)] = [
+                    'min_value'      => $item['min_amount'],
+                    'decimal_places' => $item['decimal_places'],
+                ];
+            }
 
-            return $this->api($url)['pairs'];
+            return $newList;
         });
     }
 
@@ -67,7 +73,7 @@ class YobitClass extends TradeBaseClass implements TradingInterface
         } else {
             $this->precision = MrCacheHelper::GetCachedData('yobit_price_precision', function () {
                 $pairs = array();
-                foreach ($this->getPairsSettings() as $key => $item) {
+                foreach ($this->getPairsSettings()['pairs'] as $key => $item) {
                     $pairs[$key] = $item['decimal_places'];
                 }
                 ksort($pairs);
@@ -85,62 +91,34 @@ class YobitClass extends TradeBaseClass implements TradingInterface
         $tmp1 = $tmpNum[1] ?? 0;
         $precisionDiff = pow(10, -strlen($tmp1));
         $finalQuantity = $quantity - $precisionDiff;
+        // Отнимем комиссию 0,2%
+        $finalQuantity = $finalQuantity - ($finalQuantity * 0.002);
+        // Округляем до 8 знаков в меньшую сторону
+        $finalQuantity = round($finalQuantity, 8, PHP_ROUND_HALF_DOWN);
+
         $parameters = array(
-            "pair"   => $pairName,  //"BTC_USD",
+            "pair"   => $pairName,
             "amount" => $finalQuantity,
             "rate"   => $price,
             "type"   => $kind
         );
 
-        return $this->apiQuery('Trade', $parameters);
+        return $this->client->apiQuery('Trade', $parameters);
     }
 
-    protected function apiQuery($apiName, array $req = array()): mixed
+    public function cancelOrder(int $orderId): void
     {
-        $req['method'] = $apiName;
-        $req['nonce'] = time() + rand(1, 5);
-
-        $postData = http_build_query($req, '', '&');
-        $sign = hash_hmac("sha512", $postData, env('YOBIT_SECRET'));
-        $headers = array(
-            'Sign: ' . $sign,
-            'Key: ' . env('YOBIT_KEY'),
-        );
-
-        $ch = null;
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/4.0 (compatible; SMART_API PHP client; ' . php_uname('s') . '; PHP/' . phpversion() . ')');
-        curl_setopt($ch, CURLOPT_URL, 'https://yobit.net/tapi/');
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_ENCODING, 'gzip');
-        $res = curl_exec($ch);
-        if ($res === false) {
-            curl_error($ch);
-            curl_close($ch);
-
-            return null;
-        }
-        curl_close($ch);
-
-        return json_decode($res, true);
-    }
-
-    public function cancelOrder(int $orderId)
-    {
-        $this->apiQuery('CancelOrder', ["order_id" => $orderId]);
+        $this->client->apiQuery('CancelOrder', ["order_id" => $orderId]);
     }
 
     public function getBalance(): array
     {
-        $response = $this->apiQuery('getInfo', []);
+        $response = $this->client->apiQuery('getInfo', []);
 
         $balanceOutArray = array();
         if (isset($response['return'])) {
             foreach ($response['return']['funds'] as $crypto_name => $balance) {
-                $balanceOutArray[$crypto_name] = (float)$balance;
+                $balanceOutArray[strtoupper($crypto_name)] = (float)$balance;
             }
         }
 
@@ -149,8 +127,8 @@ class YobitClass extends TradeBaseClass implements TradingInterface
 
     public function getOrderBook(int $limit = 100): array
     {
-        $urlBook = "https://yobit.net/api/3/depth/$this->pair?limit=50";
-        return $this->parseOrderBook($this->api($urlBook));
+        $list = $this->client->getOrderBook($this->pair);
+        return $this->parseOrderBook($list);
     }
 
     public function getHistory(): array
@@ -160,29 +138,32 @@ class YobitClass extends TradeBaseClass implements TradingInterface
 
     }
 
-    public function parseOrderBook(array $data): array
+    public function parseOrderBook(array $rawOrderBook): array
     {
         $rows = [];
-
+        $pair = strtolower($this->pair);
         // Количество
-        foreach ($data[$this->pair]['asks'] as $key => $item) {
+        foreach ($rawOrderBook[$pair]['asks'] as $key => $item) {
 
             $priceSell = round($item[0], 8);
             $quantitySell = round($item[1], 4);
             $sumSell = $priceSell * $quantitySell;
 
-            $row = array();
-            $row['PriceSell'] = $priceSell;
-            $row['QuantitySell'] = $quantitySell;
-            $row['SumSell'] = $sumSell;
-
-            $priceBuy = round($data[$this->pair]['bids'][$key][0], 8);
-            $quantityBuy = round($data[$this->pair]['bids'][$key][1], 4);
+            if (!isset($rawOrderBook[$pair]['bids'][$key])) {
+                break;
+            }
+            $priceBuy = round($rawOrderBook[$pair]['bids'][$key][0], 8);
+            $quantityBuy = round($rawOrderBook[$pair]['bids'][$key][1], 4);
             $sumBuy = $priceBuy * $quantityBuy;
 
-            $row['PriceBuy'] = $priceBuy;
-            $row['QuantityBuy'] = $quantityBuy;
-            $row['SumBuy'] = $sumBuy;
+            $row = new OrderBookComponent(
+                priceSell: round($priceSell, 8),
+                quantitySell: round($quantitySell, 8),
+                sumSell: round($sumSell, 8),
+                priceBuy: round($priceBuy, 8),
+                quantityBuy: round($quantityBuy, 4),
+                sumBuy: round($sumBuy, 4),
+            );
 
             $rows[] = $row;
         }
@@ -216,15 +197,19 @@ class YobitClass extends TradeBaseClass implements TradingInterface
     public function getOpenOrder(string $pair): array
     {
         $out = array();
-        $list = $this->apiQuery('ActiveOrders', ['pair' => $pair]);
+        $list = $this->client->apiQuery('ActiveOrders', ['pair' => $pair]);
 
         if ($list['success'] === 1) {
             if (isset($list['return'])) {
                 foreach ($list['return'] as $key => $row) {
-                    $item = $row;
-                    $item['order_id'] = $key;
-
-                    $out[] = $item;
+                    $out[] = new OpenOrderComponent(
+                        orderId: (int)$key,
+                        pair: strtoupper($row['pair']),
+                        type: $row['type'],
+                        amount: (float)$row['amount'],
+                        price: (float)$row['rate'],
+                        value: 0, // not used
+                    );
                 }
             }
         }
@@ -238,6 +223,6 @@ class YobitClass extends TradeBaseClass implements TradingInterface
             "pair" => $pairs, "limit" => 15, "offset" => 0
         );
 
-        return $this->apiQuery('user_trades', $parameters);
+        return $this->client->apiQuery('user_trades', $parameters);
     }
 }

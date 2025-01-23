@@ -21,7 +21,7 @@ class DebugTest extends TestCase
                 'diff'      => $item->getDifferent(),
                 'maxTrade'  => $item->getMaxTrade(),
                 'pair'      => strtoupper($item->getPair()),
-                'queueName' => strtolower($item->id() . '_queue'),
+                'queueName' => strtolower($item->id() . '_queue'). '_00',
                 'skipSum'   => $item->getSkipSum(),
             ];
 

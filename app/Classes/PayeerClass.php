@@ -96,6 +96,7 @@ class PayeerClass extends TradeBaseClass
         $tmpNum = (explode('.', (string)$quantity));
         $precisionDiff = pow(10, -strlen($tmpNum[1]));
         $finalQuantity = $quantity - $precisionDiff;
+        $finalQuantity = floor($finalQuantity);
 
         $this->client->addOrder([
             'pair'   => $pairName,

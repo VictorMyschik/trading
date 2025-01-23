@@ -4,21 +4,21 @@ networks:
   backend:
 
 services:
-  nginx:
-    build: ./docker/nginx
-    container_name: nginx_trading
-    volumes:
-      - ./docker/logs/nginx:/var/log/nginx
-      - .:/var/www/trading
-    environment:
-      - VIRTUAL_HOST=trading.test
-    ports:
-      - "80:80"
-    networks:
-      frontend:
-      backend:
-        aliases:
-          - trading.test
+  #nginx:
+  #  build: ./docker/nginx
+  #  container_name: nginx_trading
+  #  volumes:
+  #    - ./docker/logs/nginx:/var/log/nginx
+  #    - .:/var/www/trading
+  #  environment:
+  #    - VIRTUAL_HOST=trading.test
+  #  ports:
+  #    - "80:80"
+  #  networks:
+  #    frontend:
+  #    backend:
+  #      aliases:
+  #        - trading.test
 
   php:
     build: ./docker/php

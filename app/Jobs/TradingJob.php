@@ -2,7 +2,9 @@
 
 namespace App\Jobs;
 
+use App\Classes\Client\YobitClient;
 use App\Classes\TradeBaseClass;
+use App\Classes\Yobit;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -11,30 +13,28 @@ use Illuminate\Queue\SerializesModels;
 
 class TradingJob implements ShouldQueue
 {
-  use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-  protected array $input;
+    public function __construct(public array $input)
+    {
+        $this->connection = 'database';
+    }
 
-  public function __construct(array $input)
-  {
-    $this->input = $input;
-    $this->connection = 'database';
-    $this->queue = $input['queueName'];
-  }
+    public function handle(): void
+    {
+        $service = new Yobit(
+            strategy: $this->input['strategy'],
+            skipSum: $this->input['skipSum'],
+            pair: $this->input['pair'],
+            diff: $this->input['diff'],
+            quantityMax: $this->input['quantityMax'],
+            quantityMin: $this->input['quantityMin'],
+            client: new YobitClient(),
+        );
 
-  /**
-   * Execute the job.
-   *
-   * @return void
-   */
-  public function handle()
-  {
-    $className = $this->input['stock'] . 'Class';
-    $class = "App\\Classes\\" . $className;
+        $service->trade();
 
-    $object = new $class($this->input);
-    $object->trade();
-
-    TradeBaseClass::tradingByStock($this->input);
-  }
+        sleep(1);
+        TradeBaseClass::tradingByStock($this->input);
+    }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Classes;
 
-use App\Classes\Client\PayeerClient;
+use App\Classes\Client\StockClientInterface;
 use App\Classes\DTO\Components\OpenOrderComponent;
 use App\Jobs\TradingJob;
 use App\Models\MrTrading;
@@ -17,9 +17,7 @@ abstract class TradeBaseClass implements TradingInterface
 
     public const int STRATEGY_BASE = 1;
     public const int STRATEGY_SMART_ANALISE = 2;
-    protected mixed $quantityMin;
     protected array $calculatedOpenOrders;
-    protected PayeerClient $client;
 
 
     public static function getStrategyList(): array
@@ -31,15 +29,19 @@ abstract class TradeBaseClass implements TradingInterface
     }
 
     public function __construct(
-        public int       $strategy,
-        public float|int $skipSum,
-        public string    $pair,
-        public float     $diff,
-        public float|int $quantityMax,
+        protected readonly int                  $strategy,
+        protected readonly float|int            $skipSum,
+        protected readonly string               $pair,
+        protected readonly float                $diff,
+        protected readonly float|int            $quantityMax,
+        protected null|float|int                $quantityMin,
+        protected readonly StockClientInterface $client,
+
     )
     {
-        $this->client = new PayeerClient();
-        $this->quantityMin = $this->getPairsSettings()['pairs'][$this->pair]['min_value'];
+        if (!$quantityMin) {
+            $this->quantityMin = $this->getPairsSettings()['pairs'][$this->pair]['min_value'];
+        }
     }
 
     public function trade(): void
@@ -55,7 +57,7 @@ abstract class TradeBaseClass implements TradingInterface
         }
 
         $orderBookDiff = $this->getOrderBookDiff($fullOrderBook);
-        $fullOpenOrders = $this->getOpenOrder();
+        $fullOpenOrders = $this->getOpenOrder($this->pair);
 
         $this->calculatedOpenOrders = $this->groupOpenOrders($fullOpenOrders);
 
@@ -121,7 +123,7 @@ abstract class TradeBaseClass implements TradingInterface
     private function isActual(OpenOrderComponent $openOrder, array $orderBook): bool
     {
         $kind = $openOrder->type;
-        $price = $openOrder->price ?? $openOrder['rate'];
+        $price = $openOrder->price;
 
         $precision = $this->getPricePrecision()[$openOrder->pair];
         $priceKeyName = ($kind == self::KIND_SELL) ? 'priceSell' : 'priceBuy';
@@ -134,10 +136,11 @@ abstract class TradeBaseClass implements TradingInterface
         foreach ($orderBook as $item) {
             // exclude self order
             if ($item->$priceKeyName == $price) {
-                continue;
+                $sum += $item->$sumKeyName - round($openOrder->price * $openOrder->amount, $precision);
+            } else {
+                $sum += $item->$sumKeyName;
             }
 
-            $sum += $item->$sumKeyName;
             if ($sum > $this->skipSum) {
                 $orderBookItem = $item;
                 break;
@@ -175,8 +178,8 @@ abstract class TradeBaseClass implements TradingInterface
         if ($balanceValue > $this->quantityMin) {
             // Cancel open orders. Disable many orders, one only
             foreach ($fullOpenOrders as $openOrder) {
-                if ($openOrder['type'] === self::KIND_SELL && $this->pair === $openOrder['pair']) {
-                    $this->cancelOrder($openOrder->order_id);
+                if ($openOrder->type === self::KIND_SELL && $this->pair === $openOrder->pair) {
+                    $this->cancelOrder($openOrder->orderId);
 
                     return;
                 }
@@ -195,8 +198,8 @@ abstract class TradeBaseClass implements TradingInterface
             $allowMaxTradeSum = min($balanceValue, $this->quantityMax);
 
             foreach ($fullOpenOrders as $openOrder) {
-                if ($openOrder['type'] === self::KIND_BUY && $this->pair === $openOrder['pair']) {
-                    $this->cancelOrder($openOrder['order_id']);
+                if ($openOrder->type === self::KIND_BUY && $this->pair === $openOrder->pair) {
+                    $this->cancelOrder($openOrder->orderId);
 
                     return;
                 }
@@ -269,8 +272,8 @@ abstract class TradeBaseClass implements TradingInterface
         // If diff smaller than commission - cancel all orders
         if ($orderBookDiff < $this->diff) {
             foreach ($fullOpenOrders as $openOrder) {
-                if ($openOrder['pair'] === $this->pair) {
-                    $this->cancelOrder($openOrder->order_id);
+                if ($openOrder->pair === $this->pair) {
+                    $this->cancelOrder($openOrder->orderId);
                 }
             }
         } else {
@@ -388,8 +391,6 @@ abstract class TradeBaseClass implements TradingInterface
 
             $this->addOrder($finalPriceBuy, $this->pair, self::KIND_BUY, $quantity);
         }
-
-        sleep(2);
     }
 
     #endregion

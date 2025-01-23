@@ -11,85 +11,85 @@ use App\Models\ORM\ORM;
 
 class MrTrading extends ORM
 {
-  use MrDescriptionNullableFieldTrait;
-  use MrIsActiveFieldTrait;
-  use MrWriteDateFieldTrait;
-  use MrOrmDateTimeNullableFieldTrait;
+    use MrDescriptionNullableFieldTrait;
+    use MrIsActiveFieldTrait;
+    use MrWriteDateFieldTrait;
+    use MrOrmDateTimeNullableFieldTrait;
 
-  protected $table = 'mr_trading';
-  protected $fillable = [
-    'StockID',
-    'Different',
-    'MaxTrade',
-    'Pair',
-    'SkipSum',
-    'Description',
-    'IsActive',
-    'Strategy'
-    //'WriteDate'
-  ];
+    protected $table = 'mr_trading';
+    protected $fillable = [
+        'StockID',
+        'Different',
+        'MaxTrade',
+        'Pair',
+        'SkipSum',
+        'Description',
+        'IsActive',
+        'Strategy'
+        //'WriteDate'
+    ];
 
-  public function getStock(): MrStock
-  {
-    return MrStock::loadByOrDie($this->StockID);
-  }
-
-  public function setStockID(int $value): void
-  {
-    $this->StockID = $value;
-  }
-
-  public function getDifferent(): float
-  {
-    return $this->Different;
-  }
-
-  public function setDifferent(float $value): void
-  {
-    $this->Different = $value;
-  }
-
-  public function getMaxTrade(): float
-  {
-    return $this->MaxTrade;
-  }
-
-  public function setMaxTrade(float $value): void
-  {
-    $this->MaxTrade = $value;
-  }
-
-  public function getPair(): string
-  {
-    return $this->Pair;
-  }
-
-  public function setPair(string $value): void
-  {
-    $this->Pair = $value;
-  }
-
-  public function getSkipSum(): float
-  {
-    return $this->SkipSum;
-  }
-
-  public function setSkipSum(float $value): void
-  {
-    $this->SkipSum = $value;
-  }
-
-  public function getStrategy(): int
-  {
-    return TradeBaseClass::STRATEGY_BASE;
-  }
-
-  public function setStrategy(int $value): void
-  {
-    if (!isset(TradeBaseClass::getStrategyList()[$value])) {
-      abort(500, 'Unknown strategy');
+    public function getStock(): MrStock
+    {
+        return MrStock::loadByOrDie($this->StockID);
     }
 
-    $this->Strategy = $value;
-  }
+    public function setStockID(int $value): void
+    {
+        $this->StockID = $value;
+    }
+
+    public function getDifferent(): float
+    {
+        return $this->Different;
+    }
+
+    public function setDifferent(float $value): void
+    {
+        $this->Different = $value;
+    }
+
+    public function getMaxTrade(): float
+    {
+        return $this->MaxTrade;
+    }
+
+    public function setMaxTrade(float $value): void
+    {
+        $this->MaxTrade = $value;
+    }
+
+    public function getPair(): string
+    {
+        return $this->Pair;
+    }
+
+    public function setPair(string $value): void
+    {
+        $this->Pair = $value;
+    }
+
+    public function getSkipSum(): float
+    {
+        return $this->SkipSum;
+    }
+
+    public function setSkipSum(float $value): void
+    {
+        $this->SkipSum = $value;
+    }
+
+    public function getStrategy(): int
+    {
+        return TradeBaseClass::STRATEGY_BASE;
+    }
+
+    public function setStrategy(int $value): void
+    {
+        if (!isset(TradeBaseClass::getStrategyList()[$value])) {
+            abort(500, 'Unknown strategy');
+        }
+
+        $this->Strategy = $value;
+    }
 }

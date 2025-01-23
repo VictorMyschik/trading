@@ -8,8 +8,8 @@ use Illuminate\Support\Facades\Cache;
 
 class ExmoPairsDiff
 {
-    const KIND_SELL = 'sell';
-    const KIND_BUY = 'buy';
+    const string KIND_SELL = 'sell';
+    const string KIND_BUY = 'buy';
 
     public function getData(): array
     {
